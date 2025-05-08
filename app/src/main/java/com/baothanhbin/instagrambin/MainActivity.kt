@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
-                    val hideBarsRoutes = listOf("add", "post_screen/{imageUris}")
+                    val hideBarsRoutes = listOf("add", "post_screen/{imageUris}", "login")
                     Scaffold(
                         topBar = {
                             if (currentRoute !in hideBarsRoutes && currentRoute != "search") {
@@ -67,8 +67,16 @@ class MainActivity : ComponentActivity() {
                     ) { paddings ->
                         NavHost(
                             navController = navController,
-                            startDestination = "home"
+                            startDestination = "login"
                         ) {
+                            composable("login") {
+                                com.baothanhbin.instagrambin.screen.LoginScreen(
+                                    onLoginClick = { navController.navigate("home") },
+                                    onFacebookLoginClick = { navController.navigate("home") },
+                                    onSignUpClick = { navController.navigate("signup") },
+                                    onForgotPasswordClick = { navController.navigate("forgot_password") }
+                                )
+                            }
                             composable("home") {
                                 Column(
                                     modifier = Modifier
@@ -144,6 +152,17 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("profile") {
                                 ProfileScreen(paddingValues = paddings)
+                            }
+                            composable("signup") {
+                                com.baothanhbin.instagrambin.screen.SignUpScreen(
+                                    onSignUpClick = { navController.navigate("home") },
+                                    onFacebookSignUpClick = { navController.navigate("home") },
+                                    onLoginClick = { navController.popBackStack() }
+                                )
+                            }
+                            composable("forgot_password") {
+                                // TODO: Implement forgot password screen
+                                Text("Forgot Password Screen")
                             }
                         }
                     }
