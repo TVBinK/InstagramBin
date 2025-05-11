@@ -1,9 +1,12 @@
 package com.baothanhbin.instagrambin.model
 
 data class Post(
-    val user: User,
-    val post: String,
-    val description: String,
-    val likesCount: Int,
-    val commentsCount: Int
+    val postId: String = "",
+    val userId: String = "",
+    val imageUrl: String = "",
+    val caption: String = "",
+    val timestamp: Long = 0,
+    val likesCount: Int = 0,
+    val commentsCount: Int = 0,
+    val user: User = User()
 )

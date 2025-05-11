@@ -1,4 +1,4 @@
-package com.baothanhbin.instagrambin.screen
+package com.baothanhbin.instagrambin.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

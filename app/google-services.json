@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "168915999375",
+    "project_id": "instagrambin",
+    "storage_bucket": "instagrambin.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168915999375:android:d61f825be0663287a9eefa",
+        "android_client_info": {
+          "package_name": "com.baothanhbin.instagrambin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "168915999375-ibssv4e1oce3a1i24ug7n3bsnnic5bmv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDxbccwN5qLVCnXRVugjI-rFBYND4cNPA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "168915999375-ibssv4e1oce3a1i24ug7n3bsnnic5bmv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

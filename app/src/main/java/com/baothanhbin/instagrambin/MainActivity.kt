@@ -4,9 +4,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,18 +14,28 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
-import com.baothanhbin.instagrambin.model.User
-import com.baothanhbin.instagrambin.model.Post
 import com.baothanhbin.instagrambin.ui.screen.BottomBar
-import com.baothanhbin.instagrambin.ui.screen.HomeScreen
+import com.baothanhbin.instagrambin.ui.screens.HomeScreen
 import com.baothanhbin.instagrambin.ui.screen.TopBar
-import com.baothanhbin.instagrambin.screen.ProfileScreen
-import com.baothanhbin.instagrambin.screen.SearchScreen
-import com.baothanhbin.instagrambin.screen.AddScreen
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import com.baothanhbin.instagrambin.screen.PostScreen
+import com.baothanhbin.instagrambin.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import com.baothanhbin.instagrambin.viewmodel.AuthState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import com.baothanhbin.instagrambin.ui.screens.AddScreen
+import com.baothanhbin.instagrambin.ui.screens.EditProfileScreen
+import com.baothanhbin.instagrambin.ui.screens.LoginScreen
+import com.baothanhbin.instagrambin.ui.screens.PostScreen
+import com.baothanhbin.instagrambin.ui.screens.ProfileScreen
+import com.baothanhbin.instagrambin.ui.screens.SearchScreen
+import com.baothanhbin.instagrambin.ui.screens.SignUpScreen
+import com.baothanhbin.instagrambin.ui.screens.SplashScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,26 +43,42 @@ class MainActivity : ComponentActivity() {
         setContent {
             InstagramUiComposeTheme {
                 val systemUiController = rememberSystemUiController()
+                val useDarkIcons = !isSystemInDarkTheme()
+
                 SideEffect {
-                    systemUiController.setStatusBarColor(
-                        color = Color.White,
-                        darkIcons = true
+                    systemUiController.setSystemBarsColor(
+                        color = Color.Transparent,
+                        darkIcons = useDarkIcons
                     )
                 }
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides LayoutDirection.Ltr,
+                    LocalDensity provides LocalDensity.current
                 ) {
                     val navController = rememberNavController()
-                    // Lắng nghe sự thay đổi của route hiện tại
+                    val authViewModel: AuthViewModel = viewModel()
+                    val authState by authViewModel.authState.collectAsState()
+
+                    // Listen to current route
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
-                    val hideBarsRoutes = listOf("add", "post_screen/{imageUris}", "login")
+                    // Routes that should hide navigation bars
+                    val hideBarsRoutes = listOf("add", "post_screen/{imageUris}", "login", "signup", "splash")
+
                     Scaffold(
                         topBar = {
                             if (currentRoute !in hideBarsRoutes && currentRoute != "search") {
-                                TopBar(currentRoute = currentRoute)
+                                TopBar(
+                                    currentRoute = currentRoute,
+                                    onLogout = {
+                                        authViewModel.signOut()
+                                        navController.navigate("login") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                    }
+                                )
                             }
                         },
                         bottomBar = {
@@ -67,79 +92,51 @@ class MainActivity : ComponentActivity() {
                     ) { paddings ->
                         NavHost(
                             navController = navController,
-                            startDestination = "login"
+                            startDestination = "splash"
                         ) {
-                            composable("login") {
-                                com.baothanhbin.instagrambin.screen.LoginScreen(
-                                    onLoginClick = { navController.navigate("home") },
-                                    onFacebookLoginClick = { navController.navigate("home") },
-                                    onSignUpClick = { navController.navigate("signup") },
-                                    onForgotPasswordClick = { navController.navigate("forgot_password") }
+                            composable("splash") {
+                                SplashScreen(
+                                    onSplashFinished = {
+                                        when (authState) {
+                                            is AuthState.Success -> navController.navigate("home") {
+                                                popUpTo("splash") { inclusive = true }
+                                            }
+                                            else -> navController.navigate("login") {
+                                                popUpTo("splash") { inclusive = true }
+                                            }
+                                        }
+                                    }
                                 )
                             }
-                            composable("home") {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(paddings)
-                                ) {
-                                    val stories = listOf(
-                                        User(
-                                            profile = "https://this-person-does-not-exist.com/img/avatar-gen4f59c3a3f9487457d506860bb75e3247.jpg",
-                                            name = "sara"
-                                        ),
-                                        User(
-                                            profile = "https://this-person-does-not-exist.com/img/avatar-gen116a503718103ee85aa48038cc85d079.jpg",
-                                            name = "marta"
-                                        ),
-                                        User(
-                                            profile = "https://this-person-does-not-exist.com/img/avatar-gen11670e8d5aee2f5eacc036906962f823.jpg",
-                                            name = "niki"
-                                        ),
-                                        User(
-                                            profile = "https://this-person-does-not-exist.com/img/avatar-gena157df185052c72cc24fec571a77cdf0.jpg",
-                                            name = "john"
-                                        ),
+
+                            composable("login") {
+                                if (authState is AuthState.Loading) {
+                                    LoadingScreen()
+                                } else {
+                                    LoginScreen(
+                                        onLoginClick = { navController.navigate("home") },
+                                        onFacebookLoginClick = { navController.navigate("home") },
+                                        onSignUpClick = { navController.navigate("signup") },
+                                        onForgotPasswordClick = { navController.navigate("forgot_password") },
+                                        authViewModel = authViewModel
                                     )
-                                    val posts = listOf(
-                                        Post(
-                                            user = stories[0],
-                                            post = "https://www.wwf.org.uk/sites/default/files/styles/hero_s/public/2017-01/Ashley%20cooper%20forest.jpg?h=6f8e8448&itok=o0tpKRWJ",
-                                            description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                                            likesCount = (100..10000).random(),
-                                            commentsCount = (100..10000).random(),
-                                        ),
-                                        Post(
-                                            user = stories[1],
-                                            post = "https://www.iucn.org/sites/default/files/styles/what_we_do_large/public/images-themes/biodiversity-shutterstock_1477256246.jpg.webp?itok=4i9JdtFu",
-                                            description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                                            likesCount = (100..10000).random(),
-                                            commentsCount = (100..10000).random(),
-                                        ),
-                                        Post(
-                                            user = stories[2],
-                                            post = "https://www.naturebasedsolutionsinitiative.org/wp-content/uploads/2022/11/chuttersnap-MpxAiNDevjU-unsplash-1-aspect-ratio-1024-768.jpg",
-                                            description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                                            likesCount = (100..10000).random(),
-                                            commentsCount = (100..10000).random(),
-                                        ),
-                                        Post(
-                                            user = stories[3],
-                                            post = "https://cdn-blob.austria.info/cms-uploads-prod/default/0002/92/thumb_191674_default_teaser.jpeg?cachebuster=1682774670",
-                                            description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                                            likesCount = (100..10000).random(),
-                                            commentsCount = (100..10000).random(),
-                                        ),
-                                    )
-                                    HomeScreen(stories = stories, posts = posts)
                                 }
                             }
-                            composable("search") {
-                                SearchScreen(paddingValues = paddings)
+
+                            composable("home") {
+                                HomeScreen()
                             }
+
+                            composable("search") {
+                                SearchScreen(onUserClick = { userId ->
+                                    navController.navigate("profile/$userId")
+                                })
+                            }
+
                             composable("add") {
                                 AddScreen(paddingValues = paddings, navController = navController)
                             }
+
                             composable("post_screen/{imageUris}") { backStackEntry ->
                                 val imageUrisString = backStackEntry.arguments?.getString("imageUris")
                                 val imageUris = imageUrisString?.split(",")?.mapNotNull {
@@ -150,24 +147,82 @@ class MainActivity : ComponentActivity() {
                                     imageUris = imageUris
                                 )
                             }
+
                             composable("profile") {
-                                ProfileScreen(paddingValues = paddings)
+                                ProfileScreen(paddingValues = paddings, navController = navController)
                             }
+
                             composable("signup") {
-                                com.baothanhbin.instagrambin.screen.SignUpScreen(
+                                SignUpScreen(
                                     onSignUpClick = { navController.navigate("home") },
                                     onFacebookSignUpClick = { navController.navigate("home") },
-                                    onLoginClick = { navController.popBackStack() }
+                                    onLoginClick = { navController.popBackStack() },
+                                    authViewModel = authViewModel
                                 )
                             }
-                            composable("forgot_password") {
-                                // TODO: Implement forgot password screen
-                                Text("Forgot Password Screen")
+
+                            composable("edit_profile") {
+                                val editProfileViewModel: com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel = viewModel()
+                                EditProfileScreen(
+                                    viewModel = editProfileViewModel,
+                                    onCancel = { navController.popBackStack() },
+                                    onDone = { navController.popBackStack() }
+                                )
+                            }
+
+                            composable("profile/{userId}") { backStackEntry ->
+                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
+                                    userId = userId,
+                                    onNavigateBack = { navController.popBackStack() }
+                                )
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun LoadingScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun MainScreen(authViewModel: AuthViewModel = viewModel()) {
+    val authState by authViewModel.authState.collectAsState()
+
+    when (authState) {
+        is AuthState.Initial -> {
+            LoginScreen(
+                onLoginClick = { /* handled by navigation */ },
+                onFacebookLoginClick = { /* handled by navigation */ },
+                onSignUpClick = { /* handled by navigation */ },
+                onForgotPasswordClick = { /* handled by navigation */ },
+                authViewModel = authViewModel
+            )
+        }
+        is AuthState.Loading -> {
+            LoadingScreen()
+        }
+        is AuthState.Success -> {
+            HomeScreen()
+        }
+        is AuthState.Error -> {
+            LoginScreen(
+                onLoginClick = { /* handled by navigation */ },
+                onFacebookLoginClick = { /* handled by navigation */ },
+                onSignUpClick = { /* handled by navigation */ },
+                onForgotPasswordClick = { /* handled by navigation */ },
+                authViewModel = authViewModel
+            )
         }
     }
 }

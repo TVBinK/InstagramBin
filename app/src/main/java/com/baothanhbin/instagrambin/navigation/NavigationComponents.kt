@@ -9,6 +9,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,18 +30,15 @@ data class BottomBarItem(val icon: Int, val route: String)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar(
-    currentRoute: String? = null
+    currentRoute: String? = null,
+    onLogout: () -> Unit = {}
 ) {
-    if (currentRoute == "profile" || currentRoute == "home") {
+    val showMenu = remember { mutableStateOf(false) }
+
+    if (currentRoute == "profile" || currentRoute == "home" || currentRoute?.startsWith("user_profile/") == true) {
         TopAppBar(
             title = {
                 if (currentRoute == "profile") {
-                    Text(
-                        text = "nyuht",
-                        modifier = Modifier.padding(start = 0.dp, bottom = 0.dp),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
                 } else if (currentRoute == "home") {
                     Icon(
                         modifier = Modifier
@@ -61,12 +61,28 @@ fun TopBar(
                             modifier = Modifier.size(30.dp),
                             tint = Color.Black
                         )
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More",
-                            modifier = Modifier.size(30.dp),
-                            tint = Color.Black
-                        )
+                        Box {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More",
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clickable { showMenu.value = !showMenu.value },
+                                tint = Color.Black
+                            )
+                            DropdownMenu(
+                                expanded = showMenu.value,
+                                onDismissRequest = { showMenu.value = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Đăng xuất") },
+                                    onClick = {
+                                        showMenu.value = false
+                                        onLogout()
+                                    }
+                                )
+                            }
+                        }
                     }
                 } else if (currentRoute == "home"){
                     Row(
@@ -105,48 +121,49 @@ fun BottomBar(
         BottomBarItem(R.drawable.ic_profile, "profile")
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceAround
-    ) {
-        bottomBarItems.forEach { item ->
-            val isSelected = currentRoute == item.route
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (isSelected) Color.LightGray else Color.Transparent)
-                    .clickable {
-                        if (currentRoute != item.route) {
-                            if (navController != null) {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            } else {
-                                onNavigate(item.route)
-                            }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
+    // Only show bottom bar if not in user profile screen
+    if (currentRoute?.startsWith("user_profile/") != true) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            bottomBarItems.forEach { item ->
+                val isSelected = currentRoute == item.route
+                Box(
                     modifier = Modifier
-                        .size(if (isSelected) 26.dp else 22.dp),
-                    painter = painterResource(id = item.icon),
-                    contentDescription = null,
-                    tint = if (isSelected) Color.Black else Color.Gray
-                )
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.LightGray else Color.Transparent)
+                        .clickable {
+                            if (currentRoute != item.route) {
+                                if (navController != null) {
+                                    navController.navigate(item.route) {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                } else {
+                                    onNavigate(item.route)
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        modifier = Modifier
+                            .size(if (isSelected) 26.dp else 22.dp),
+                        painter = painterResource(id = item.icon),
+                        contentDescription = null,
+                        tint = if (isSelected) Color.Black else Color.Gray
+                    )
+                }
             }
         }
     }
 }
+
 @Preview(showBackground = true, name = "Profile TopBar Preview")
 @Composable
 fun ProfileTopBarPreview() {

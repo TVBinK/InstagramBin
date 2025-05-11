@@ -1,4 +1,4 @@
-package com.baothanhbin.instagrambin.ui.screen
+package com.baothanhbin.instagrambin.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -35,8 +35,6 @@ import com.baothanhbin.instagrambin.model.Post
 import com.baothanhbin.instagrambin.model.User
 import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
 import kotlinx.coroutines.delay
-
-
 
 @Composable
 fun HomeScreen(
@@ -91,7 +89,7 @@ fun HomeScreen(
                         AsyncImage(
                             model = ImageRequest
                                 .Builder(context)
-                                .data(post.user.profile)
+                                .data(post.user.profileImageUrl)
                                 .crossfade(400)
                                 .build(),
                             modifier = Modifier
@@ -102,7 +100,7 @@ fun HomeScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = post.user.name)
+                    Text(text = post.user.fullName)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -117,7 +115,7 @@ fun HomeScreen(
                 AsyncImage(
                     model = ImageRequest
                         .Builder(context)
-                        .data(post.post)
+                        .data(post.imageUrl)
                         .crossfade(400)
                         .build(),
                     contentDescription = null,
@@ -179,7 +177,7 @@ fun HomeScreen(
             Column(modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text(text = "${post.likesCount} likes", fontSize = 13.sp)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = post.description, fontSize = 13.sp)
+                Text(text = post.caption, fontSize = 13.sp)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "View all ${post.commentsCount} comments",
@@ -198,18 +196,15 @@ fun Stories(stories: List<User>) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        itemsIndexed(stories) { index, story ->
-            if (index == 0) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
+        items(stories) { user ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                modifier = Modifier.padding(horizontal = 8.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .border(
-                            2.dp, Brush.horizontalGradient(
+                            1.dp, Brush.horizontalGradient(
                                 listOf(
                                     Color(0xffff6f00),
                                     Color(0xffffeb35),
@@ -226,49 +221,27 @@ fun Stories(stories: List<User>) {
                     AsyncImage(
                         model = ImageRequest
                             .Builder(context)
-                            .data(story.profile)
+                            .data(user.profileImageUrl)
                             .crossfade(400)
                             .build(),
                         modifier = Modifier
                             .clip(CircleShape)
-                            .size(60.dp),
+                            .size(65.dp),
                         contentScale = ContentScale.Crop,
                         contentDescription = null
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = story.name, fontSize = 13.sp)
+                Text(text = user.username, fontSize = 12.sp)
             }
-            Spacer(modifier = Modifier.width(10.dp))
         }
     }
 }
-@Composable
+
 @Preview(showBackground = true)
+@Composable
 fun HomeScreenPreview() {
     InstagramUiComposeTheme {
-        val stories = listOf(
-            User(
-                profile = "https://this-person-does-not-exist.com/img/avatar-gen11945081a5b36eebba0679f61dfbd225.jpg",
-                name = "melika"
-            ),
-        )
-        val posts = listOf(
-            Post(
-                user = stories[0],
-                post = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbOgDkM2In7l5CVeeJjwcdVRd9tdQ4r5wwzPkLOz9CP-Uxnx-rdtxHvXJWbIz6qUBjFHI&usqp=CAU",
-                description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                likesCount = 1000,
-                commentsCount = 200
-            ),
-            Post(
-                user = stories[1],
-                post = "https://www.wwf.org.uk/sites/default/files/styles/hero_s/public/2017-01/Ashley%20cooper%20forest.jpg?h=6f8e8448&itok=o0tpKRWJ",
-                description = "As you consider all the possible ways to improve yourself and the world, you notice John Travolta seems fairly unhappy.",
-                likesCount = 500,
-                commentsCount = 50
-            ),
-        )
-        HomeScreen(stories = stories, posts = posts)
+        HomeScreen()
     }
 }

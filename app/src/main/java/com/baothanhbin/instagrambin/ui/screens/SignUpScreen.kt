@@ -1,4 +1,4 @@
-package com.baothanhbin.instagrambin.screen
+package com.baothanhbin.instagrambin.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -6,7 +6,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -14,20 +13,38 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.baothanhbin.instagrambin.R
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.baothanhbin.instagrambin.viewmodel.AuthViewModel
+import com.baothanhbin.instagrambin.viewmodel.AuthState
 
 @Composable
 fun SignUpScreen(
     onSignUpClick: () -> Unit = {},
     onFacebookSignUpClick: () -> Unit = {},
-    onLoginClick: () -> Unit = {}
+    onLoginClick: () -> Unit = {},
+    authViewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val authState by authViewModel.authState.collectAsState()
+
+    LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> {
+                onSignUpClick()
+            }
+            is AuthState.Error -> {
+                errorMessage = (authState as AuthState.Error).message
+            }
+            else -> {}
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -46,6 +63,15 @@ fun SignUpScreen(
             ),
             modifier = Modifier.padding(bottom = 32.dp)
         )
+
+        // Error message
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
 
         // Email
         OutlinedTextField(
@@ -87,29 +113,32 @@ fun SignUpScreen(
             placeholder = { Text("Mật khẩu") },
             singleLine = true,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                // val icon = if (passwordVisible) R.drawable.ic_visibility else R.drawable.ic_visibility_off
-                // IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                //   Icon(painter = painterResource(id = icon), contentDescription = null)
-                //}
-            },
             modifier = Modifier
                 .fillMaxWidth()
         )
 
         // Sign up button
         Button(
-            onClick = onSignUpClick,
+            onClick = {
+                if (email.isNotBlank() && password.isNotBlank() && username.isNotBlank() && fullName.isNotBlank()) {
+                    authViewModel.signUp(email, password, username, fullName)
+                } else {
+                    errorMessage = "Vui lòng điền đầy đủ thông tin"
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
                 .padding(top = 16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF52A4E2))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF52A4E2)),
+            enabled = authState !is AuthState.Loading
         ) {
-            Text("Đăng ký", color = Color.White, fontWeight = FontWeight.Bold)
+            if (authState is AuthState.Loading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Text("Đăng ký", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
-
-
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -121,12 +150,12 @@ fun SignUpScreen(
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Have an account?",
+                text = "Bạn đã có tài khoản?",
                 color = Color.Gray,
-                modifier = Modifier.padding(top = 15.dp)
+                modifier = Modifier.padding(top = 13.dp)
             )
             TextButton(onClick = onLoginClick) {
-                Text("Log in.", color = Color(0xFF3797EF))
+                Text("Đăng nhập.", color = Color(0xFF3797EF))
             }
         }
     }

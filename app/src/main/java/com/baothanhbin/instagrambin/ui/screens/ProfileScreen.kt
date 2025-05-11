@@ -1,8 +1,9 @@
-package com.baothanhbin.instagrambin.screen
+package com.baothanhbin.instagrambin.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -31,24 +32,86 @@ import com.baothanhbin.instagrambin.model.StoryHighlights
 import com.baothanhbin.instagrambin.model.TabRowIcons
 import com.baothanhbin.instagrambin.ui.screen.TopBar
 import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
+import com.baothanhbin.instagrambin.viewmodel.ProfileViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 
 @Preview(showBackground = true)
 @Composable
-fun ProfileScreen() {
+fun ProfileScreenPreview() {
+    val mockUser = com.baothanhbin.instagrambin.model.User(
+        uid = "preview",
+        email = "preview@example.com",
+        username = "preview_user",
+        fullName = "Preview User",
+        bio = "This is a preview bio",
+        followers = 100,
+        following = 50
+    )
     Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
         TopBar(currentRoute = "profile")
     }, content = { contentPadding ->
-        MainContent(modifier = Modifier.padding(contentPadding))
+        MainContent(
+            modifier = Modifier.padding(contentPadding),
+            onEditProfileClick = {},
+            user = mockUser
+        )
     })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainContent(modifier: Modifier) {
+fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navController: androidx.navigation.NavController? = null) {
+    val viewModel: ProfileViewModel = viewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    val authViewModel: com.baothanhbin.instagrambin.viewmodel.AuthViewModel = viewModel()
+    var showMenu by remember { mutableStateOf(false) }
+
+    InstagramUiComposeTheme {
+        Scaffold(
+            topBar = {
+                TopBar(currentRoute = "profile")
+            }
+        ) { contentPadding ->
+            when {
+                uiState.isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                uiState.error != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = uiState.error!!, color = Color.Red)
+                    }
+                }
+                uiState.user != null -> {
+                    MainContent(
+                        modifier = Modifier.padding(contentPadding),
+                        onEditProfileClick = {
+                            navController?.navigate("edit_profile")
+                        },
+                        user = uiState.user!!
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MainContent(
+    modifier: Modifier,
+    onEditProfileClick: () -> Unit,
+    user: com.baothanhbin.instagrambin.model.User
+) {
     var selectedTabIndex by remember {
         mutableIntStateOf(0)
     }
     Column(modifier.fillMaxSize()) {
-        ProfileSection()
+        ProfileSection(
+            onEditProfileClick = onEditProfileClick,
+            user = user
+        )
         Spacer(modifier = Modifier.height(20.dp))
         PostsTabView(onTabSelected = { index ->
             selectedTabIndex = index
@@ -115,7 +178,11 @@ fun PostsTabView(
 }
 
 @Composable
-fun ProfileSection(modifier: Modifier = Modifier) {
+fun ProfileSection(
+    modifier: Modifier = Modifier,
+    onEditProfileClick: () -> Unit,
+    user: com.baothanhbin.instagrambin.model.User
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Spacer(modifier = Modifier.height(6.dp))
         Row(
@@ -124,19 +191,39 @@ fun ProfileSection(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
         ) {
-            ImageBuilder(
-                image = painterResource(id = R.drawable.profile_pic),
-                modifier = modifier
-                    .size(100.dp)
-                    .weight(2f)
+            if (user.profileImageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = user.profileImageUrl,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, Color.LightGray, CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.profile_pic),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, Color.LightGray, CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            FollowStatusBar(
+                modifier = Modifier.weight(8f),
+                followers = user.followers,
+                following = user.following
             )
-            FollowStatusBar(modifier = Modifier.weight(8f))
         }
         BioSection(
-            name = "Pham Thao Mai",
-            description = "Korean international students  \nFor Android tutorials Jetpack Compose",
+            name = user.fullName,
+            username = user.username,
+            description = user.bio,
         )
-        ButtonsSection(modifier = modifier.fillMaxWidth())
+        ButtonsSection(modifier = modifier.fillMaxWidth(), onEditProfileClick = onEditProfileClick)
         Spacer(modifier = Modifier.height(20.dp))
         HighlightSection(
             highlight = listOf(
@@ -164,10 +251,10 @@ fun ImageBuilder(image: Painter, modifier: Modifier) {
         painter = image,
         contentDescription = "",
         modifier = modifier
-            .aspectRatio(1f, matchHeightConstraintsFirst = true)
+            .size(70.dp)
+            .clip(CircleShape)
             .border(width = 2.dp, color = Color.LightGray, shape = CircleShape)
             .padding(5.dp)
-            .clip(CircleShape)
     )
 }
 
@@ -211,7 +298,7 @@ fun HighlightSection(highlight: List<StoryHighlights>, modifier: Modifier = Modi
 }
 
 @Composable
-fun ButtonsSection(modifier: Modifier) {
+fun ButtonsSection(modifier: Modifier, onEditProfileClick: () -> Unit) {
     val width = 400.dp
     val height = 30.dp
     Row(
@@ -223,7 +310,8 @@ fun ButtonsSection(modifier: Modifier) {
         SampleButton(
             modifier = Modifier
                 .width(width)
-                .height(height),
+                .height(height)
+                .clickable { onEditProfileClick() },
             text = "Chỉnh sửa trang cá nhân",
         )
     }
@@ -249,6 +337,7 @@ fun SampleButton(
 @Composable
 fun BioSection(
     name: String,
+    username: String,
     description: String,
 ) {
     val letterSpacing = 0.5.sp
@@ -265,6 +354,13 @@ fun BioSection(
             lineHeight = lineHeight
         )
         Text(
+            text = "@${username}",
+            fontWeight = FontWeight.Medium,
+            color = Color.Gray,
+            letterSpacing = letterSpacing,
+            lineHeight = lineHeight
+        )
+        Text(
             text = description,
             fontWeight = FontWeight.Medium,
             letterSpacing = letterSpacing,
@@ -274,41 +370,38 @@ fun BioSection(
 }
 
 @Composable
-fun FollowStatusBar(modifier: Modifier) {
+fun FollowStatusBar(
+    modifier: Modifier = Modifier,
+    followers: Int = 0,
+    following: Int = 0
+) {
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceAround,
-        modifier = modifier
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        FollowSection(number = "3", label = "bài viết", modifier = modifier)
-        FollowSection(number = "49K", label = "người theo dõi", modifier = modifier)
-        FollowSection(number = "53", label = "đang theo dõi", modifier = modifier)
-    }
-}
-
-@Composable
-fun FollowSection(number: String, label: String, modifier: Modifier) {
-    Column(
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-    ) {
-        Text(text = number, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            fontSize = 14.sp
-        )
-    }
-}
-
-
-@Composable
-fun ProfileScreen(paddingValues: PaddingValues) {
-    InstagramUiComposeTheme {
-        MainContent(modifier = Modifier.padding(paddingValues))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "0",
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+            Text(text = "Bài viết", fontSize = 14.sp)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = followers.toString(),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+            Text(text = "Người theo dõi", fontSize = 14.sp)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = following.toString(),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+            Text(text = "Đang theo dõi", fontSize = 14.sp)
+        }
     }
 }

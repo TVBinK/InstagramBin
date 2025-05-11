@@ -1,11 +1,9 @@
-package com.baothanhbin.instagrambin.screen
+package com.baothanhbin.instagrambin.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -18,17 +16,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.baothanhbin.instagrambin.R
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.baothanhbin.instagrambin.viewmodel.AuthViewModel
+import com.baothanhbin.instagrambin.viewmodel.AuthState
 
 @Composable
 fun LoginScreen(
     onLoginClick: () -> Unit = {},
     onFacebookLoginClick: () -> Unit = {},
     onSignUpClick: () -> Unit = {},
-    onForgotPasswordClick: () -> Unit = {}
+    onForgotPasswordClick: () -> Unit = {},
+    authViewModel: AuthViewModel = viewModel()
 ) {
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val authState by authViewModel.authState.collectAsState()
+
+    LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> {
+                onLoginClick()
+            }
+            is AuthState.Error -> {
+                errorMessage = (authState as AuthState.Error).message
+            }
+            else -> {}
+        }
+    }
 
     Column(
         //cách top 100dp
@@ -50,11 +67,20 @@ fun LoginScreen(
             modifier = Modifier.padding(bottom = 32.dp)
         )
 
-        // Username
+        // Error message
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        // Email
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            placeholder = { Text("Tài khoản") },
+            value = email,
+            onValueChange = { email = it },
+            placeholder = { Text("Email") },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,13 +112,24 @@ fun LoginScreen(
 
         // Login button
         Button(
-            onClick = onLoginClick,
+            onClick = {
+                if (email.isNotBlank() && password.isNotBlank()) {
+                    authViewModel.signIn(email, password)
+                } else {
+                    errorMessage = "Vui lòng điền đầy đủ thông tin"
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF52A4E2))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF52A4E2)),
+            enabled = authState !is AuthState.Loading
         ) {
-            Text("Đăng Nhập", color = Color.White, fontWeight = FontWeight.Bold)
+            if (authState is AuthState.Loading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Text("Đăng Nhập", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
 
         // Or divider
@@ -130,10 +167,10 @@ fun LoginScreen(
         ) {
             // Don't have an account? căn giữa
             Text(
-                text = "Chưa có tài khoản?",
+                text = "Bạn chưa có tài khoản?",
                 color = Color.Gray,
                 modifier = Modifier
-                    .padding(top = 14.dp)
+                    .padding(top = 13.dp)
             )
             TextButton(onClick = onSignUpClick) {
                 Text("Đăng ký.", color = Color(0xFF3797EF))
