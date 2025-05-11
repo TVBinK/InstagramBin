@@ -206,7 +206,7 @@ fun ProfileSection(
                     painter = painterResource(id = R.drawable.profile_pic),
                     contentDescription = "Profile Picture",
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(80.dp)
                         .clip(CircleShape)
                         .border(1.dp, Color.LightGray, CircleShape),
                     contentScale = ContentScale.Crop
@@ -383,25 +383,25 @@ fun FollowStatusBar(
             Text(
                 text = "0",
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                fontSize = 16.sp
             )
-            Text(text = "Bài viết", fontSize = 14.sp)
+            Text(text = "Bài viết", fontSize = 12.sp)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = followers.toString(),
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                fontSize = 16.sp
             )
-            Text(text = "Người theo dõi", fontSize = 14.sp)
+            Text(text = "Người theo dõi", fontSize = 12.sp)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = following.toString(),
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                fontSize = 16.sp
             )
-            Text(text = "Đang theo dõi", fontSize = 14.sp)
+            Text(text = "Đang theo dõi", fontSize = 12.sp)
         }
     }
 }

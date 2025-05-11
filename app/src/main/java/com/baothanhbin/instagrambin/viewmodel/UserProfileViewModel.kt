@@ -1,117 +1,130 @@
 package com.baothanhbin.instagrambin.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.baothanhbin.instagrambin.model.Post
-import com.baothanhbin.instagrambin.model.UserProfile
+import com.baothanhbin.instagrambin.model.User
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class UserProfileViewModel : ViewModel() {
-    private val _userProfile = MutableStateFlow<UserProfile?>(null)
-    val userProfile: StateFlow<UserProfile?> = _userProfile
+data class UserProfileUiState(
+    val user: User? = null,
+    val posts: List<Post> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val isFollowing: Boolean = false
+)
 
-    private val _posts = MutableStateFlow<List<Post>>(emptyList())
-    val posts: StateFlow<List<Post>> = _posts
+class UserProfileViewModel(application: Application) : AndroidViewModel(application) {
+    private val _uiState = MutableStateFlow(UserProfileUiState())
+    val uiState: StateFlow<UserProfileUiState> = _uiState.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    private val auth = FirebaseAuth.getInstance()
+    private val database = FirebaseDatabase.getInstance()
+    private var userId: String? = null
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error
+    fun setUserId(id: String) {
+        userId = id
+        loadUserProfile()
+    }
 
-    fun loadUserProfile(userId: String) {
+    fun loadUserProfile() {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                _error.value = null
-
-                val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
-                if (currentUserId == null) {
-                    _error.value = "You must be logged in to view profiles"
-                    return@launch
-                }
-
-                val database = FirebaseDatabase.getInstance().reference
-
-                // Fetch user profile data
-                val userSnapshot = database.child("users").child(userId).get().await()
-                val userData = userSnapshot.getValue(UserProfile::class.java)
-
-                // Check if current user is following this user
-                val isFollowing = if (currentUserId != null) {
-                    val followSnapshot = database.child("follows")
-                        .child(currentUserId)
-                        .child(userId)
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                
+                userId?.let { id ->
+                    val userRef = database.getReference("users").child(id)
+                    val currentUserRef = database.getReference("users").child(auth.currentUser?.uid ?: "")
+                    
+                    // Get user data
+                    val userSnapshot = userRef.get().await()
+                    val user = userSnapshot.getValue(User::class.java)
+                    
+                    // Check if current user is following this user
+                    val isFollowing = currentUserRef.child("following")
+                        .child(id)
                         .get()
                         .await()
-                    followSnapshot.exists()
-                } else false
+                        .exists()
 
-                userData?.let {
-                    _userProfile.value = it.copy(followingState = isFollowing)
+                    // Load user's posts
+                    val postsSnapshot = database.getReference("posts")
+                        .orderByChild("userId")
+                        .equalTo(id)
+                        .get()
+                        .await()
+
+                    val posts = postsSnapshot.children.mapNotNull { 
+                        it.getValue(Post::class.java) 
+                    }.sortedByDescending { it.timestamp }
+                    
+                    _uiState.update { 
+                        it.copy(
+                            user = user,
+                            posts = posts,
+                            isFollowing = isFollowing,
+                            isLoading = false
+                        )
+                    }
                 }
-
-                // Load user's posts
-                val postsSnapshot = database.child("posts")
-                    .orderByChild("userId")
-                    .equalTo(userId)
-                    .get()
-                    .await()
-
-                val postsList = postsSnapshot.children.mapNotNull { it.getValue(Post::class.java) }
-                    .sortedByDescending { it.timestamp }
-                _posts.value = postsList
-
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to load profile"
-            } finally {
-                _isLoading.value = false
+                _uiState.update { 
+                    it.copy(
+                        error = e.message ?: "Có lỗi xảy ra",
+                        isLoading = false
+                    )
+                }
             }
         }
     }
 
-    fun toggleFollow(userId: String) {
+    fun toggleFollow() {
         viewModelScope.launch {
             try {
-                val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
-                if (currentUserId == null) {
-                    _error.value = "You must be logged in to follow users"
-                    return@launch
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                
+                val currentUserId = auth.currentUser?.uid
+                userId?.let { targetUserId ->
+                    if (currentUserId != null) {
+                        val currentUserRef = database.getReference("users").child(currentUserId)
+                        val targetUserRef = database.getReference("users").child(targetUserId)
+                        
+                        if (_uiState.value.isFollowing) {
+                            // Unfollow
+                            currentUserRef.child("following").child(targetUserId).removeValue().await()
+                            targetUserRef.child("followers").child(currentUserId).removeValue().await()
+                        } else {
+                            // Follow
+                            currentUserRef.child("following").child(targetUserId).setValue(true).await()
+                            targetUserRef.child("followers").child(currentUserId).setValue(true).await()
+                        }
+                        
+                        _uiState.update { 
+                            it.copy(
+                                isFollowing = !it.isFollowing,
+                                isLoading = false
+                            )
+                        }
+                    }
                 }
-
-                val database = FirebaseDatabase.getInstance().reference
-                val isFollowing = _userProfile.value?.followingState ?: false
-
-                if (isFollowing) {
-                    // Unfollow
-                    database.child("follows")
-                        .child(currentUserId)
-                        .child(userId)
-                        .removeValue()
-                        .await()
-                } else {
-                    // Follow
-                    database.child("follows")
-                        .child(currentUserId)
-                        .child(userId)
-                        .setValue(true)
-                        .await()
-                }
-
-                // Update local state
-                _userProfile.value = _userProfile.value?.copy(
-                    followingState = !isFollowing,
-                    followers = if (isFollowing) _userProfile.value?.followers?.minus(1) ?: 0
-                    else _userProfile.value?.followers?.plus(1) ?: 0
-                )
-
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to update follow status"
+                _uiState.update { 
+                    it.copy(
+                        error = e.message ?: "Có lỗi xảy ra",
+                        isLoading = false
+                    )
+                }
             }
         }
     }

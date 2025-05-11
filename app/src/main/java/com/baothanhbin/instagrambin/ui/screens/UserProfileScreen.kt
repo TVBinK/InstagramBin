@@ -1,227 +1,233 @@
 package com.baothanhbin.instagrambin.ui.screens
 
+import android.app.Application
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.baothanhbin.instagrambin.R
 import com.baothanhbin.instagrambin.model.Post
+import com.baothanhbin.instagrambin.model.User
+import com.baothanhbin.instagrambin.viewmodel.UserProfileUiState
 import com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel
-import androidx.compose.ui.platform.LocalInspectionMode
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserProfileScreen(
-    userId: String,
-    onNavigateBack: () -> Unit,
-    onPostClick: (Post) -> Unit = {},
-    viewModel: UserProfileViewModel = viewModel()
+fun UserProfileScreenContent(
+    state: UserProfileUiState,
+    onBackClick: () -> Unit,
+    onPostClick: (Post) -> Unit,
+    onFollowClick: () -> Unit,
+    onUnfollowClick: () -> Unit,
+    onMessageClick: () -> Unit
 ) {
-    val isPreview = LocalInspectionMode.current
-    if (isPreview) {
-        // Hiển thị UI mock khi preview
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Profile") },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        AsyncImage(
-                            model = "",
-                            contentDescription = "Profile picture",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .padding(end = 16.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            StatItem(count = 0, label = "Posts")
-                            StatItem(count = 0, label = "Followers")
-                            StatItem(count = 0, label = "Following")
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Mock Name",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Mock bio",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {},
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Follow")
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-            }
-        }
-        return
-    }
-
-    val userProfile by viewModel.userProfile.collectAsState()
-    val posts by viewModel.posts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-
-    LaunchedEffect(userId) {
-        viewModel.loadUserProfile(userId)
-    }
-
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(userProfile?.username ?: "Profile") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* TODO: Show options menu */ }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                    }
-                }
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    modifier = Modifier.clickable { onBackClick() }
+                )
+                Text(
+                    text = state.user?.username ?: "",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = "More",
+                    modifier = Modifier.clickable { /* TODO: Show options menu */ }
+                )
+            }
         }
-    ) { paddingValues ->
-        Box(
+    ) { padding ->
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(padding)
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-
-            error?.let { errorMessage ->
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp)
-                )
-            }
-
-            userProfile?.let { profile ->
+            // Profile Header
+            item {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                 ) {
-                    // Profile Header
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Profile Image
                         AsyncImage(
-                            model = profile.profileImageUrl,
-                            contentDescription = "Profile picture",
+                            model = state.user?.profileImageUrl,
+                            contentDescription = "Profile Image",
                             modifier = Modifier
                                 .size(80.dp)
-                                .padding(end = 16.dp),
+                                .clip(CircleShape)
+                                .background(Color.LightGray),
                             contentScale = ContentScale.Crop
                         )
 
-                        // Stats
+                        // Status
                         Row(
                             modifier = Modifier.weight(1f),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            StatItem(count = posts.size, label = "Posts")
-                            StatItem(count = profile.followers, label = "Followers")
-                            StatItem(count = profile.following, label = "Following")
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${state.posts.size}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text("Bài viết", fontSize = 12.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${state.user?.followers ?: 0}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text("Người theo dõi", fontSize = 12.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${state.user?.following ?: 0}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text("Đang theo dõi", fontSize = 12.sp)
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // User Info
-                    Text(
-                        text = profile.fullName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = profile.bio,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Follow Button
-                    Button(
-                        onClick = { viewModel.toggleFollow(userId) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (profile.followingState) "Unfollow" else "Follow")
+                    // Bio
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Text(
+                            text = state.user?.fullName ?: "",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = state.user?.bio ?: "",
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // Action Buttons
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (state.isFollowing) {
+                            Button(
+                                onClick = onUnfollowClick,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.LightGray,
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Text("Bỏ theo dõi")
+                            }
+                        } else {
+                            Button(
+                                onClick = onFollowClick,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF3797EF)
+                                )
+                            ) {
+                                Text("Theo dõi")
+                            }
+                        }
+                        Button(
+                            onClick = onMessageClick,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.LightGray,
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Text("Nhắn tin")
+                        }
+                    }
+                }
+            }
+
+            // Posts Grid
+            item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Grid Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(0.5.dp, Color.LightGray)
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.GridOn,
+                            contentDescription = "Grid",
+                            tint = Color.Black
+                        )
+                    }
 
                     // Posts Grid
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        horizontalArrangement = Arrangement.spacedBy(1.dp),
-                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
                     ) {
-                        items(posts) { post ->
-                            PostThumbnail(
-                                post = post,
-                                onClick = { onPostClick(post) }
-                            )
+                        items(state.posts) { post ->
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .padding(1.dp)
+                                    .clickable { onPostClick(post) }
+                            ) {
+                                AsyncImage(
+                                    model = post.imageUrl,
+                                    contentDescription = "Post",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                         }
                     }
                 }
@@ -231,46 +237,63 @@ fun UserProfileScreen(
 }
 
 @Composable
-private fun StatItem(count: Int, label: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}
-
-@Composable
-private fun PostThumbnail(
-    post: Post,
-    onClick: () -> Unit
+fun UserProfileScreen(
+    viewModel: UserProfileViewModel,
+    onBackClick: () -> Unit,
+    onPostClick: (Post) -> Unit,
+    onFollowClick: () -> Unit,
+    onUnfollowClick: () -> Unit,
+    onMessageClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clickable(onClick = onClick)
-    ) {
-        AsyncImage(
-            model = post.imageUrl,
-            contentDescription = "Post thumbnail",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-    }
+    val state by viewModel.uiState.collectAsState()
+    UserProfileScreenContent(
+        state = state,
+        onBackClick = onBackClick,
+        onPostClick = onPostClick,
+        onFollowClick = onFollowClick,
+        onUnfollowClick = onUnfollowClick,
+        onMessageClick = onMessageClick
+    )
 }
 
 @Preview(showBackground = true)
 @Composable
 fun UserProfileScreenPreview() {
-    UserProfileScreen(
-        userId = "12345",
-        onNavigateBack = {}
+    val mockUser = User(
+        uid = "1",
+        email = "mock@email.com",
+        username = "mockuser",
+        fullName = "Mock User",
+        profileImageUrl = "",
+        bio = "This is a mock bio.",
+        followers = 123,
+        following = 456,
+        gender = "Other"
+    )
+    val mockPosts = List(6) { i ->
+        Post(
+            postId = "$i",
+            userId = "1",
+            imageUrl = "",
+            caption = "Caption $i",
+            timestamp = System.currentTimeMillis() - i * 100000,
+            likesCount = i * 10,
+            commentsCount = i * 2
+        )
+    }
+    val mockState = com.baothanhbin.instagrambin.viewmodel.UserProfileUiState(
+        user = mockUser,
+        posts = mockPosts,
+        isLoading = false,
+        error = null,
+        isFollowing = false
+    )
+    UserProfileScreenContent(
+        state = mockState,
+        onBackClick = {},
+        onPostClick = {},
+        onFollowClick = {},
+        onUnfollowClick = {},
+        onMessageClick = {}
     )
 }

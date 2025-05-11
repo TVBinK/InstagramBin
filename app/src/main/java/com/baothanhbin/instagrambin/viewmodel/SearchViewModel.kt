@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baothanhbin.instagrambin.model.UserProfile
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -23,7 +24,10 @@ class SearchViewModel : ViewModel() {
                 .get()
                 .await()
             val users = snapshot.children.mapNotNull { it.getValue(UserProfile::class.java) }
-            val filtered = users.filter { it.username.contains(username, ignoreCase = true) }
+            val filtered = users.filter { 
+                it.username.contains(username, ignoreCase = true) &&
+                it.uid != FirebaseAuth.getInstance().currentUser?.uid
+            }
             _searchResults.value = filtered
         }
     }

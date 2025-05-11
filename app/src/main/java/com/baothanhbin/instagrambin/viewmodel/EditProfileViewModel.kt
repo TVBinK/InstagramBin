@@ -9,6 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.baothanhbin.instagrambin.model.User
+import com.baothanhbin.instagrambin.service.CloudinaryService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseUser
@@ -19,6 +21,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.database.FirebaseDatabase
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import android.content.Intent
+import android.provider.MediaStore
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 
 // UI State data class
 data class EditProfileUiState(
@@ -45,6 +53,7 @@ data class EditProfileUiState(
 
 class EditProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
+    private val cloudinaryService = CloudinaryService(application)
     private val context = getApplication<Application>().applicationContext
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
@@ -64,7 +73,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                         .getReference("users")
                         .child(currentUser.uid)
                         .get().await()
-                    val user = snapshot.getValue(com.baothanhbin.instagrambin.model.User::class.java)
+                    val user = snapshot.getValue(User::class.java)
                     user?.let {
                         _uiState.update { state ->
                             state.copy(
@@ -77,6 +86,17 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                                 gender = it.gender,
                                 isLoading = false
                             )
+                        }
+                        // Load profile image if exists
+                        if (it.profileImageUrl.isNotEmpty()) {
+                            try {
+                                val uri = Uri.parse(it.profileImageUrl)
+                                _uiState.update { state ->
+                                    state.copy(avatarUri = uri)
+                                }
+                            } catch (e: Exception) {
+                                Log.e("EditProfile", "Error loading profile image: ${e.message}", e)
+                            }
                         }
                     }
                 }
@@ -98,10 +118,6 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(username = username) }
     }
 
-    fun onWebsiteChange(website: String) {
-        _uiState.update { it.copy(website = website) }
-    }
-
     fun onBioChange(bio: String) {
         _uiState.update { it.copy(bio = bio) }
     }
@@ -110,16 +126,8 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(email = email) }
     }
 
-    fun onPhoneChange(phone: String) {
-        _uiState.update { it.copy(phone = phone) }
-    }
-
     fun onGenderChange(gender: String) {
         _uiState.update { it.copy(gender = gender) }
-    }
-
-    fun onChangeAvatar() {
-        // TODO: Xử lý đổi ảnh đại diện ở đây
     }
 
     fun showEmailVerificationDialog() {
@@ -248,25 +256,80 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 val currentUser = auth.currentUser ?: throw Exception("User not logged in")
-                val user = com.baothanhbin.instagrambin.model.User(
+                
+                // Upload image if selected
+                val profileImageUrl = _uiState.value.avatarUri?.let { uri ->
+                    try {
+                        cloudinaryService.uploadImage(uri)
+                    } catch (e: Exception) {
+                        Log.e("EditProfile", "Error uploading image: ${e.message}", e)
+                        throw Exception("Không thể upload ảnh: ${e.message}")
+                    }
+                } ?: ""
+
+                // Get current user data to preserve followers and following count
+                val currentUserSnapshot = FirebaseDatabase.getInstance()
+                    .getReference("users")
+                    .child(currentUser.uid)
+                    .get().await()
+                val currentUserData = currentUserSnapshot.getValue(User::class.java)
+
+                val user = User(
                     uid = currentUser.uid,
                     email = _uiState.value.email,
                     username = _uiState.value.username,
                     fullName = _uiState.value.name,
-                    profileImageUrl = "", // Nếu có trường này thì lấy từ state
+                    profileImageUrl = profileImageUrl,
                     bio = _uiState.value.bio,
-                    followers = 0, // Hoặc lấy từ state nếu muốn giữ nguyên
-                    following = 0, // Hoặc lấy từ state nếu muốn giữ nguyên
+                    followers = currentUserData?.followers ?: 0,
+                    following = currentUserData?.following ?: 0,
                     gender = _uiState.value.gender
                 )
+
+                // Update user data in Firebase
                 FirebaseDatabase.getInstance()
                     .getReference("users")
                     .child(currentUser.uid)
-                    .setValue(user).await()
+                    .setValue(user)
+                    .await()
+
                 _uiState.update { it.copy(isLoading = false, shouldCloseScreen = true) }
+                Toast.makeText(context, "Cập nhật thông tin thành công", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
+                Log.e("EditProfile", "Error saving profile: ${e.message}", e)
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
+                Toast.makeText(context, "Lỗi cập nhật thông tin: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    fun updateName(name: String) {
+        _uiState.update { it.copy(name = name) }
+    }
+
+    fun updateUsername(username: String) {
+        _uiState.update { it.copy(username = username) }
+    }
+
+    fun updateBio(bio: String) {
+        _uiState.update { it.copy(bio = bio) }
+    }
+
+    fun updateEmail(email: String) {
+        _uiState.update { it.copy(email = email) }
+    }
+
+    fun updateGender(gender: String) {
+        _uiState.update { it.copy(gender = gender) }
+    }
+}
+
+class EditProfileViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(EditProfileViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return EditProfileViewModel(application) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 } 

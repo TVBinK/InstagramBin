@@ -36,6 +36,10 @@ import com.baothanhbin.instagrambin.ui.screens.ProfileScreen
 import com.baothanhbin.instagrambin.ui.screens.SearchScreen
 import com.baothanhbin.instagrambin.ui.screens.SignUpScreen
 import com.baothanhbin.instagrambin.ui.screens.SplashScreen
+import android.app.Application
+import androidx.compose.ui.platform.LocalContext
+import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel
+import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,7 +166,9 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable("edit_profile") {
-                                val editProfileViewModel: com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel = viewModel()
+                                val editProfileViewModel: EditProfileViewModel = viewModel(
+                                    factory = EditProfileViewModelFactory(LocalContext.current.applicationContext as Application)
+                                )
                                 EditProfileScreen(
                                     viewModel = editProfileViewModel,
                                     onCancel = { navController.popBackStack() },
@@ -172,9 +178,17 @@ class MainActivity : ComponentActivity() {
 
                             composable("profile/{userId}") { backStackEntry ->
                                 val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
+                                LaunchedEffect(userId) {
+                                    userProfileViewModel.setUserId(userId)
+                                }
                                 com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
-                                    userId = userId,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    viewModel = userProfileViewModel,
+                                    onBackClick = { navController.popBackStack() },
+                                    onPostClick = { /* TODO: handle post click */ },
+                                    onFollowClick = { userProfileViewModel.toggleFollow() },
+                                    onUnfollowClick = { userProfileViewModel.toggleFollow() },
+                                    onMessageClick = { /* TODO: handle message click */ }
                                 )
                             }
                         }

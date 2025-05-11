@@ -66,4 +66,6 @@ android {
         implementation("androidx.navigation:navigation-compose:2.7.7")
         implementation("io.coil-kt:coil-compose:2.7.0")
         implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
+        implementation("com.cloudinary:cloudinary-android:2.3.1")
+        implementation("androidx.compose.material:material-icons-extended:<version>")
     }
