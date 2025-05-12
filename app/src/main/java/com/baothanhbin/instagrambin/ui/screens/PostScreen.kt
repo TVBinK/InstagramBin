@@ -3,8 +3,7 @@ package com.baothanhbin.instagrambin.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -27,15 +26,27 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.navigation.testing.TestNavHostController
-
+import com.baothanhbin.instagrambin.viewmodel.PostViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostScreen(
     navController: NavController,
-    imageUris: List<Uri> = emptyList()
+    imageUris: List<Uri> = emptyList(),
+    viewModel: PostViewModel = viewModel()
 ) {
     var caption by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) {
+            navController.navigate("home") {
+                popUpTo("home") { inclusive = true }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -118,26 +129,36 @@ fun PostScreen(
                 .background(Color.Transparent, RoundedCornerShape(8.dp))
         )
         Spacer(modifier = Modifier.weight(1f))
-        Box(
+        
+        // Share Button
+        Button(
+            onClick = { viewModel.uploadPost(imageUris, caption) },
+            enabled = !uiState.isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF0095F6),
+                contentColor = Color.White
+            )
         ) {
-            Button(
-                onClick = { /* TODO: Xử lý chia sẻ */ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4267F6))
-            ) {
-                Text(
-                    text = "Chia sẻ",
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp
+            if (uiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color.White
                 )
+            } else {
+                Text("Chia sẻ")
             }
+        }
+
+        // Error message
+        uiState.error?.let { error ->
+            Text(
+                text = error,
+                color = Color.Red,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
         }
     }
 }

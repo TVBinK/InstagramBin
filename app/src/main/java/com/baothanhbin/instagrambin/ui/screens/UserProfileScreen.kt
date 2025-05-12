@@ -42,7 +42,9 @@ fun UserProfileScreenContent(
     onPostClick: (Post) -> Unit,
     onFollowClick: () -> Unit,
     onUnfollowClick: () -> Unit,
-    onMessageClick: () -> Unit
+    onMessageClick: () -> Unit,
+    onFollowersClick: () -> Unit,
+    onFollowingClick: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -101,34 +103,42 @@ fun UserProfileScreenContent(
                             contentScale = ContentScale.Crop
                         )
 
-                        // Status
+                        // Stats
                         Row(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { onFollowersClick() }
+                            ) {
                                 Text(
-                                    text = "${state.posts.size}",
+                                    text = state.user?.followersCount?.toString() ?: "0",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp
                                 )
-                                Text("Bài viết", fontSize = 12.sp)
+                                Text(
+                                    text = "Người theo dõi",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
                             }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { onFollowingClick() }
+                            ) {
                                 Text(
-                                    text = "${state.user?.followers ?: 0}",
+                                    text = state.user?.followingCount?.toString() ?: "0",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp
                                 )
-                                Text("Người theo dõi", fontSize = 12.sp)
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "${state.user?.following ?: 0}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
+                                    text = "Đang theo dõi",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
                                 )
-                                Text("Đang theo dõi", fontSize = 12.sp)
                             }
                         }
                     }
@@ -157,34 +167,44 @@ fun UserProfileScreenContent(
                         if (state.isFollowing) {
                             Button(
                                 onClick = onUnfollowClick,
-                                modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.LightGray,
-                                    contentColor = Color.Black
-                                )
+                                    containerColor = Color(0xFFEFEFEF)
+                                ),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text("Bỏ theo dõi")
+                                Text(
+                                    text = "Bỏ theo dõi",
+                                    color = Color.Black,
+                                    fontSize = 12.sp
+                                )
                             }
                         } else {
                             Button(
                                 onClick = onFollowClick,
-                                modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF3797EF)
-                                )
+                                ),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text("Theo dõi")
+                                Text(
+                                    text = "Theo dõi",
+                                    color = Color.White,
+                                    fontSize = 12.sp
+                                )
                             }
                         }
                         Button(
                             onClick = onMessageClick,
-                            modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.LightGray,
-                                contentColor = Color.Black
-                            )
+                                containerColor = Color(0xFFEFEFEF)
+                            ),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("Nhắn tin")
+                            Text(
+                                text = "Nhắn tin",
+                                color = Color.Black,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -243,7 +263,9 @@ fun UserProfileScreen(
     onPostClick: (Post) -> Unit,
     onFollowClick: () -> Unit,
     onUnfollowClick: () -> Unit,
-    onMessageClick: () -> Unit
+    onMessageClick: () -> Unit,
+    onFollowersClick: () -> Unit,
+    onFollowingClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     UserProfileScreenContent(
@@ -252,7 +274,9 @@ fun UserProfileScreen(
         onPostClick = onPostClick,
         onFollowClick = onFollowClick,
         onUnfollowClick = onUnfollowClick,
-        onMessageClick = onMessageClick
+        onMessageClick = onMessageClick,
+        onFollowersClick = onFollowersClick,
+        onFollowingClick = onFollowingClick
     )
 }
 
@@ -266,8 +290,15 @@ fun UserProfileScreenPreview() {
         fullName = "Mock User",
         profileImageUrl = "",
         bio = "This is a mock bio.",
-        followers = 123,
-        following = 456,
+        followers = mapOf(
+            "follower1" to true,
+            "follower2" to true,
+            "follower3" to true
+        ),
+        following = mapOf(
+            "following1" to true,
+            "following2" to true
+        ),
         gender = "Other"
     )
     val mockPosts = List(6) { i ->
@@ -294,6 +325,8 @@ fun UserProfileScreenPreview() {
         onPostClick = {},
         onFollowClick = {},
         onUnfollowClick = {},
-        onMessageClick = {}
+        onMessageClick = {},
+        onFollowersClick = {},
+        onFollowingClick = {}
     )
 }

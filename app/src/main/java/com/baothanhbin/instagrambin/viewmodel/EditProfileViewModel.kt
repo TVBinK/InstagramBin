@@ -55,6 +55,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
     private val auth = FirebaseAuth.getInstance()
     private val cloudinaryService = CloudinaryService(application)
     private val context = getApplication<Application>().applicationContext
+    private val database = FirebaseDatabase.getInstance()
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -66,23 +67,20 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
     private fun loadUserProfile() {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isLoading = true) }
+                _uiState.update { it.copy(isLoading = true, error = null) }
                 val currentUser = auth.currentUser
                 if (currentUser != null) {
-                    val snapshot = FirebaseDatabase.getInstance()
-                        .getReference("users")
-                        .child(currentUser.uid)
-                        .get().await()
-                    val user = snapshot.getValue(User::class.java)
+                    val userRef = database.getReference("users").child(currentUser.uid)
+                    val userSnapshot = userRef.get().await()
+                    val user = userSnapshot.getValue(User::class.java)
+                    
                     user?.let {
                         _uiState.update { state ->
                             state.copy(
                                 name = it.fullName,
                                 username = it.username,
-                                website = "", // Nếu có trường này trong model thì lấy luôn
                                 bio = it.bio,
                                 email = it.email,
-                                phone = "", // Nếu có trường này trong model thì lấy luôn
                                 gender = it.gender,
                                 isLoading = false
                             )
@@ -101,7 +99,12 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
+                _uiState.update { 
+                    it.copy(
+                        error = e.message ?: "Có lỗi xảy ra",
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -255,50 +258,60 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
-                val currentUser = auth.currentUser ?: throw Exception("User not logged in")
-                
-                // Upload image if selected
-                val profileImageUrl = _uiState.value.avatarUri?.let { uri ->
-                    try {
-                        cloudinaryService.uploadImage(uri)
-                    } catch (e: Exception) {
-                        Log.e("EditProfile", "Error uploading image: ${e.message}", e)
-                        throw Exception("Không thể upload ảnh: ${e.message}")
+                val currentUser = auth.currentUser
+                if (currentUser != null) {
+                    val userRef = database.getReference("users").child(currentUser.uid)
+                    
+                    // Get current user data to preserve followers and following
+                    val currentUserSnapshot = userRef.get().await()
+                    val currentUserData = currentUserSnapshot.getValue(User::class.java)
+                    
+                    // Upload image to Cloudinary if a new image is selected
+                    var profileImageUrl = currentUserData?.profileImageUrl ?: ""
+                    if (_uiState.value.avatarUri != null) {
+                        try {
+                            profileImageUrl = cloudinaryService.uploadImage(_uiState.value.avatarUri!!)
+                        } catch (e: Exception) {
+                            Log.e("EditProfile", "Error uploading image: ${e.message}", e)
+                            throw Exception("Không thể tải lên ảnh đại diện: ${e.message}")
+                        }
                     }
-                } ?: ""
-
-                // Get current user data to preserve followers and following count
-                val currentUserSnapshot = FirebaseDatabase.getInstance()
-                    .getReference("users")
-                    .child(currentUser.uid)
-                    .get().await()
-                val currentUserData = currentUserSnapshot.getValue(User::class.java)
-
-                val user = User(
-                    uid = currentUser.uid,
-                    email = _uiState.value.email,
-                    username = _uiState.value.username,
-                    fullName = _uiState.value.name,
-                    profileImageUrl = profileImageUrl,
-                    bio = _uiState.value.bio,
-                    followers = currentUserData?.followers ?: 0,
-                    following = currentUserData?.following ?: 0,
-                    gender = _uiState.value.gender
-                )
-
-                // Update user data in Firebase
-                FirebaseDatabase.getInstance()
-                    .getReference("users")
-                    .child(currentUser.uid)
-                    .setValue(user)
-                    .await()
-
-                _uiState.update { it.copy(isLoading = false, shouldCloseScreen = true) }
-                Toast.makeText(context, "Cập nhật thông tin thành công", Toast.LENGTH_SHORT).show()
+                    
+                    val updatedUser = User(
+                        uid = currentUser.uid,
+                        email = _uiState.value.email,
+                        username = _uiState.value.username,
+                        fullName = _uiState.value.name,
+                        profileImageUrl = profileImageUrl,
+                        bio = _uiState.value.bio,
+                        followers = currentUserData?.followers ?: mapOf(),
+                        following = currentUserData?.following ?: mapOf(),
+                        gender = _uiState.value.gender
+                    )
+                    
+                    userRef.setValue(updatedUser).await()
+                    
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false,
+                            shouldCloseScreen = true
+                        )
+                    }
+                } else {
+                    _uiState.update { 
+                        it.copy(
+                            error = "Không tìm thấy thông tin người dùng",
+                            isLoading = false
+                        )
+                    }
+                }
             } catch (e: Exception) {
-                Log.e("EditProfile", "Error saving profile: ${e.message}", e)
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
-                Toast.makeText(context, "Lỗi cập nhật thông tin: ${e.message}", Toast.LENGTH_SHORT).show()
+                _uiState.update { 
+                    it.copy(
+                        error = e.message ?: "Có lỗi xảy ra",
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -321,6 +334,19 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
 
     fun updateGender(gender: String) {
         _uiState.update { it.copy(gender = gender) }
+    }
+
+    fun fixUserFields() {
+        val database = FirebaseDatabase.getInstance().reference
+        database.child("users").get().addOnSuccessListener { snapshot ->
+            snapshot.children.forEach { userSnap ->
+                val userId = userSnap.key ?: return@forEach
+                // Xóa trường followersCount nếu có
+                database.child("users").child(userId).child("followersCount").removeValue()
+                // Xóa trường followingCount nếu có
+                database.child("users").child(userId).child("followingCount").removeValue()
+            }
+        }
     }
 }
 

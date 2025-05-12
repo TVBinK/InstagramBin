@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -23,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.baothanhbin.instagrambin.R
+import coil.compose.AsyncImage
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
 
 data class BottomBarItem(val icon: Int, val route: String)
 
@@ -114,6 +118,8 @@ fun BottomBar(
     onNavigate: (String) -> Unit = {},
     currentRoute: String? = null
 ) {
+    val homeViewModel: HomeViewModel = viewModel()
+    val currentUser = homeViewModel.uiState.value.currentUser
     val bottomBarItems = listOf(
         BottomBarItem(R.drawable.ic_home, "home"),
         BottomBarItem(R.drawable.ic_search, "search"),
@@ -121,11 +127,11 @@ fun BottomBar(
         BottomBarItem(R.drawable.ic_profile, "profile")
     )
 
-    // Only show bottom bar if not in user profile screen
     if (currentRoute?.startsWith("user_profile/") != true) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(Color.White)
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
@@ -151,13 +157,24 @@ fun BottomBar(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        modifier = Modifier
-                            .size(if (isSelected) 26.dp else 22.dp),
-                        painter = painterResource(id = item.icon),
-                        contentDescription = null,
-                        tint = if (isSelected) Color.Black else Color.Gray
-                    )
+                    if (item.route == "profile" && currentUser?.profileImageUrl?.isNotEmpty() == true) {
+                        AsyncImage(
+                            model = currentUser.profileImageUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(if (isSelected) 26.dp else 22.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            modifier = Modifier
+                                .size(if (isSelected) 26.dp else 22.dp),
+                            painter = painterResource(id = item.icon),
+                            contentDescription = null,
+                            tint = if (isSelected) Color.Black else Color.Gray
+                        )
+                    }
                 }
             }
         }

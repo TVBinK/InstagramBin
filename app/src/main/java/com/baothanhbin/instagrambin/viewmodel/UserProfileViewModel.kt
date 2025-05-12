@@ -20,6 +20,8 @@ import kotlinx.coroutines.tasks.await
 data class UserProfileUiState(
     val user: User? = null,
     val posts: List<Post> = emptyList(),
+    val followers: List<User> = emptyList(),
+    val following: List<User> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val isFollowing: Boolean = false
@@ -58,6 +60,14 @@ class UserProfileViewModel(application: Application) : AndroidViewModel(applicat
                         .await()
                         .exists()
 
+                    // Load followers
+                    val followersSnapshot = userRef.child("followers").get().await()
+                    val followersMap = followersSnapshot.getValue(object : com.google.firebase.database.GenericTypeIndicator<Map<String, Boolean>>() {}) ?: mapOf()
+                    
+                    // Load following
+                    val followingSnapshot = userRef.child("following").get().await()
+                    val followingMap = followingSnapshot.getValue(object : com.google.firebase.database.GenericTypeIndicator<Map<String, Boolean>>() {}) ?: mapOf()
+
                     // Load user's posts
                     val postsSnapshot = database.getReference("posts")
                         .orderByChild("userId")
@@ -68,10 +78,16 @@ class UserProfileViewModel(application: Application) : AndroidViewModel(applicat
                     val posts = postsSnapshot.children.mapNotNull { 
                         it.getValue(Post::class.java) 
                     }.sortedByDescending { it.timestamp }
+
+                    // Update user with followers and following maps
+                    val updatedUser = user?.copy(
+                        followers = followersMap,
+                        following = followingMap
+                    )
                     
                     _uiState.update { 
                         it.copy(
-                            user = user,
+                            user = updatedUser,
                             posts = posts,
                             isFollowing = isFollowing,
                             isLoading = false
@@ -110,12 +126,8 @@ class UserProfileViewModel(application: Application) : AndroidViewModel(applicat
                             targetUserRef.child("followers").child(currentUserId).setValue(true).await()
                         }
                         
-                        _uiState.update { 
-                            it.copy(
-                                isFollowing = !it.isFollowing,
-                                isLoading = false
-                            )
-                        }
+                        // Reload user profile to update counts
+                        loadUserProfile()
                     }
                 }
             } catch (e: Exception) {

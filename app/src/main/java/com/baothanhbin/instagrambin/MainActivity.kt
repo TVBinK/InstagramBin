@@ -40,6 +40,8 @@ import android.app.Application
 import androidx.compose.ui.platform.LocalContext
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModelFactory
+import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
+import com.baothanhbin.instagrambin.ui.screens.PostDetailScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,7 +130,7 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable("home") {
-                                HomeScreen()
+                                HomeScreen(navController = navController)
                             }
 
                             composable("search") {
@@ -188,8 +190,80 @@ class MainActivity : ComponentActivity() {
                                     onPostClick = { /* TODO: handle post click */ },
                                     onFollowClick = { userProfileViewModel.toggleFollow() },
                                     onUnfollowClick = { userProfileViewModel.toggleFollow() },
-                                    onMessageClick = { /* TODO: handle message click */ }
+                                    onMessageClick = { /* TODO: handle message click */ },
+                                    onFollowersClick = { navController.navigate("followers/$userId") },
+                                    onFollowingClick = { navController.navigate("following/$userId") }
                                 )
+                            }
+
+                            composable("followers/{userId}") { backStackEntry ->
+                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                val followersViewModel: com.baothanhbin.instagrambin.viewmodel.FollowersViewModel = viewModel()
+                                LaunchedEffect(userId) {
+                                    followersViewModel.loadFollowers(userId)
+                                }
+                                val state by followersViewModel.uiState.collectAsState()
+                                com.baothanhbin.instagrambin.ui.screens.FollowersScreen(
+                                    followers = state.followers,
+                                    onBackClick = { navController.popBackStack() },
+                                    onUserClick = { followerId ->
+                                        navController.navigate("profile/$followerId")
+                                    }
+                                )
+                            }
+
+                            composable("following/{userId}") { backStackEntry ->
+                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                val followingViewModel: com.baothanhbin.instagrambin.viewmodel.FollowingViewModel = viewModel()
+                                LaunchedEffect(userId) {
+                                    followingViewModel.loadFollowing(userId)
+                                }
+                                val state by followingViewModel.uiState.collectAsState()
+                                com.baothanhbin.instagrambin.ui.screens.FollowingScreen(
+                                    following = state.following,
+                                    onBackClick = { navController.popBackStack() },
+                                    onUserClick = { followingId ->
+                                        navController.navigate("profile/$followingId")
+                                    }
+                                )
+                            }
+
+                            composable("post_detail/{postId}") { backStackEntry ->
+                                val postId = backStackEntry.arguments?.getString("postId") ?: ""
+                                val postViewModel: PostsSectionViewModel = viewModel()
+                                LaunchedEffect(postId) {
+                                    postViewModel.loadPostById(postId)
+                                }
+                                val state by postViewModel.uiState.collectAsState()
+                                when {
+                                    state.isLoading -> {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator()
+                                        }
+                                    }
+                                    state.error != null -> {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = state.error ?: "Có lỗi xảy ra",
+                                                color = Color.Red
+                                            )
+                                        }
+                                    }
+                                    state.posts.isNotEmpty() -> {
+                                        state.posts.firstOrNull { it.postId == postId }?.let { post ->
+                                            PostDetailScreen(
+                                                postId = postId,
+                                                navController = navController
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

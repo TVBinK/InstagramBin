@@ -35,37 +35,14 @@ import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
 import com.baothanhbin.instagrambin.viewmodel.ProfileViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-
-@Preview(showBackground = true)
-@Composable
-fun ProfileScreenPreview() {
-    val mockUser = com.baothanhbin.instagrambin.model.User(
-        uid = "preview",
-        email = "preview@example.com",
-        username = "preview_user",
-        fullName = "Preview User",
-        bio = "This is a preview bio",
-        followers = 100,
-        following = 50
-    )
-    Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
-        TopBar(currentRoute = "profile")
-    }, content = { contentPadding ->
-        MainContent(
-            modifier = Modifier.padding(contentPadding),
-            onEditProfileClick = {},
-            user = mockUser
-        )
-    })
-}
+import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
+import androidx.navigation.NavController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navController: androidx.navigation.NavController? = null) {
     val viewModel: ProfileViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
-    val authViewModel: com.baothanhbin.instagrambin.viewmodel.AuthViewModel = viewModel()
-    var showMenu by remember { mutableStateOf(false) }
 
     InstagramUiComposeTheme {
         Scaffold(
@@ -90,7 +67,14 @@ fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navControl
                         onEditProfileClick = {
                             navController?.navigate("edit_profile")
                         },
-                        user = uiState.user!!
+                        onFollowersClick = {
+                            navController?.navigate("followers/${uiState.user!!.uid}")
+                        },
+                        onFollowingClick = {
+                            navController?.navigate("following/${uiState.user!!.uid}")
+                        },
+                        user = uiState.user!!,
+                        navController = navController
                     )
                 }
             }
@@ -102,77 +86,125 @@ fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navControl
 fun MainContent(
     modifier: Modifier,
     onEditProfileClick: () -> Unit,
-    user: com.baothanhbin.instagrambin.model.User
+    onFollowersClick: () -> Unit,
+    onFollowingClick: () -> Unit,
+    user: com.baothanhbin.instagrambin.model.User,
+    navController: NavController?
 ) {
-    var selectedTabIndex by remember {
-        mutableIntStateOf(0)
-    }
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
         ProfileSection(
             onEditProfileClick = onEditProfileClick,
+            onFollowersClick = onFollowersClick,
+            onFollowingClick = onFollowingClick,
             user = user
         )
         Spacer(modifier = Modifier.height(20.dp))
-        PostsTabView(onTabSelected = { index ->
-            selectedTabIndex = index
-        })
+        PostsTabView(
+            selectedTabIndex = selectedTabIndex,
+            onTabSelected = { index ->
+                selectedTabIndex = index
+            }
+        )
         when (selectedTabIndex) {
-            0 -> PostsSection()
+            0 -> PostsSection(navController = navController)
         }
     }
 }
 
 @Composable
-fun PostsSection() {
-    val posts = listOf(
-        painterResource(id = R.drawable.animated_topbar),
-        painterResource(id = R.drawable.animation),
-        painterResource(id = R.drawable.scrollable_column)
-    )
-    LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.scale(1.01f), content = {
-        items(posts.size) {
-            Image(
-                painter = posts[it],
-                contentDescription = "",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .aspectRatio(1f)
-                    .border(
-                        width = 1.dp, color = Color.White
-                    )
-            )
+fun PostsSection(
+    viewModel: PostsSectionViewModel = viewModel(),
+    navController: NavController? = null
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    when {
+        uiState.isLoading -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
         }
-    })
+        uiState.error != null -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = uiState.error ?: "Error loading posts")
+            }
+        }
+        else -> {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.scale(1.01f)
+            ) {
+                items(uiState.posts.size) { index ->
+                    val post = uiState.posts[index]
+                    AsyncImage(
+                        model = post.imageUrl,
+                        contentDescription = "Post",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .border(width = 1.dp, color = Color.White)
+                            .clickable {
+                                navController?.navigate("post_detail/${post.postId}")
+                            }
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun PostsTabView(
-    modifier: Modifier = Modifier, onTabSelected: (selectedIndex: Int) -> Unit
+    modifier: Modifier = Modifier,
+    selectedTabIndex: Int,
+    onTabSelected: (selectedIndex: Int) -> Unit
 ) {
-    var selectedTabIndex by remember {
-        mutableIntStateOf(0)
-    }
     val tabIcons = listOf(
         TabRowIcons(R.drawable.ic_grid),
         TabRowIcons(R.drawable.instagram_reels_icon),
         TabRowIcons(R.drawable.instagram_tag_icon)
     )
-    TabRow(
-        selectedTabIndex = selectedTabIndex, modifier = modifier
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         tabIcons.forEachIndexed { index, tabRowIcons ->
-            Tab(selected = index == selectedTabIndex, onClick = {
-                selectedTabIndex = index
-                onTabSelected(index)
-            }, icon = {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable {
+                        onTabSelected(index)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     painter = painterResource(id = tabRowIcons.icon),
-                    contentDescription = "",
+                    contentDescription = "Tab ${index + 1}",
                     modifier = Modifier.size(20.dp),
                     tint = if (selectedTabIndex == index) Color.Black else Color.Gray
                 )
-            }, selectedContentColor = Color.Black, unselectedContentColor = Color.Gray
-            )
+                if (selectedTabIndex == index) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(Color.Black)
+                    )
+                }
+            }
         }
     }
 }
@@ -181,6 +213,8 @@ fun PostsTabView(
 fun ProfileSection(
     modifier: Modifier = Modifier,
     onEditProfileClick: () -> Unit,
+    onFollowersClick: () -> Unit,
+    onFollowingClick: () -> Unit,
     user: com.baothanhbin.instagrambin.model.User
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -214,8 +248,10 @@ fun ProfileSection(
             }
             FollowStatusBar(
                 modifier = Modifier.weight(8f),
-                followers = user.followers,
-                following = user.following
+                followers = user.followersCount,
+                following = user.followingCount,
+                onFollowersClick = onFollowersClick,
+                onFollowingClick = onFollowingClick
             )
         }
         BioSection(
@@ -249,7 +285,7 @@ fun ProfileSection(
 fun ImageBuilder(image: Painter, modifier: Modifier) {
     Image(
         painter = image,
-        contentDescription = "",
+        contentDescription = "Highlight",
         modifier = modifier
             .size(70.dp)
             .clip(CircleShape)
@@ -373,13 +409,18 @@ fun BioSection(
 fun FollowStatusBar(
     modifier: Modifier = Modifier,
     followers: Int = 0,
-    following: Int = 0
+    following: Int = 0,
+    onFollowersClick: () -> Unit = {},
+    onFollowingClick: () -> Unit = {}
 ) {
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable(onClick = onFollowersClick)
+        ) {
             Text(
                 text = "0",
                 fontWeight = FontWeight.Bold,
@@ -387,7 +428,10 @@ fun FollowStatusBar(
             )
             Text(text = "Bài viết", fontSize = 12.sp)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable(onClick = onFollowersClick)
+        ) {
             Text(
                 text = followers.toString(),
                 fontWeight = FontWeight.Bold,
@@ -395,7 +439,10 @@ fun FollowStatusBar(
             )
             Text(text = "Người theo dõi", fontSize = 12.sp)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable(onClick = onFollowingClick)
+        ) {
             Text(
                 text = following.toString(),
                 fontWeight = FontWeight.Bold,
