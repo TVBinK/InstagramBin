@@ -28,9 +28,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.R
 import com.baothanhbin.instagrambin.model.Post
-import com.baothanhbin.instagrambin.model.Comment
-import com.baothanhbin.instagrambin.viewmodel.PostDetailViewModel
-import com.baothanhbin.instagrambin.viewmodel.CommentViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,7 +40,9 @@ import android.widget.Toast
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.baothanhbin.instagrambin.viewmodel.CommentViewModel
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
+import com.baothanhbin.instagrambin.model.Comment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +72,7 @@ fun PostDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chi tiết bài viết") },
+                title = { Text("Comments") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -274,7 +273,7 @@ fun PostDetailContent(
                 Icon(
                     painter = painterResource(id = if (post.likes.isNotEmpty()) R.drawable.heart else R.drawable.heart_outline),
                     contentDescription = "Likes",
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = post.likesCount.toString())
@@ -284,7 +283,7 @@ fun PostDetailContent(
                     painter = painterResource(id = R.drawable.ic_comment),
                     contentDescription = "Comments",
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = post.commentsCount.toString())
