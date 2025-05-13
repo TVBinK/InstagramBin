@@ -14,9 +14,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
-import com.baothanhbin.instagrambin.ui.screen.BottomBar
-import com.baothanhbin.instagrambin.ui.screens.HomeScreen
-import com.baothanhbin.instagrambin.ui.screen.TopBar
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -38,10 +35,14 @@ import com.baothanhbin.instagrambin.ui.screens.SignUpScreen
 import com.baothanhbin.instagrambin.ui.screens.SplashScreen
 import android.app.Application
 import androidx.compose.ui.platform.LocalContext
+import com.baothanhbin.instagrambin.ui.screen.BottomBar
+import com.baothanhbin.instagrambin.ui.screen.TopBar
+import com.baothanhbin.instagrambin.ui.screens.HomeScreen
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModelFactory
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.ui.screens.PostDetailScreen
+import com.baothanhbin.instagrambin.ui.screens.MessageScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +84,8 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("login") {
                                             popUpTo(0) { inclusive = true }
                                         }
-                                    }
+                                    },
+                                    navController = navController
                                 )
                             }
                         },
@@ -230,41 +232,14 @@ class MainActivity : ComponentActivity() {
 
                             composable("post_detail/{postId}") { backStackEntry ->
                                 val postId = backStackEntry.arguments?.getString("postId") ?: ""
-                                val postViewModel: PostsSectionViewModel = viewModel()
-                                LaunchedEffect(postId) {
-                                    postViewModel.loadPostById(postId)
-                                }
-                                val state by postViewModel.uiState.collectAsState()
-                                when {
-                                    state.isLoading -> {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            CircularProgressIndicator()
-                                        }
-                                    }
-                                    state.error != null -> {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = state.error ?: "Có lỗi xảy ra",
-                                                color = Color.Red
-                                            )
-                                        }
-                                    }
-                                    state.posts.isNotEmpty() -> {
-                                        state.posts.firstOrNull { it.postId == postId }?.let { post ->
-                                            PostDetailScreen(
-                                                postId = postId,
-                                                navController = navController
-                                            )
-                                        }
-                                    }
-                                }
+                                PostDetailScreen(
+                                    navController = navController,
+                                    postId = postId
+                                )
                             }
+
+                            composable("message") { MessageScreen() }
+
                         }
                     }
                 }

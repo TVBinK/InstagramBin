@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 
 data class PostsSectionUiState(
     val posts: List<Post> = emptyList(),
+    val currentPost: Post? = null,
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -74,57 +75,39 @@ class PostsSectionViewModel(application: Application) : AndroidViewModel(applica
     fun loadPostById(postId: String) {
         viewModelScope.launch {
             try {
-                // Check if we already have this post loaded
-                if (_uiState.value.posts.any { it.postId == postId }) {
-                    return@launch
-                }
-
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 
-                val currentUser = auth.currentUser ?: throw Exception("User not logged in")
+                // Get post directly by ID
+                val postSnapshot = database.getReference("posts")
+                    .child(postId)
+                    .get()
+                    .await()
                 
-                // Get current user's following list
-                val userRef = database.getReference("users").child(currentUser.uid)
-                val userSnapshot = userRef.get().await()
-                val user = userSnapshot.getValue(User::class.java)
-                
-                // Get posts from current user and users they follow
-                val followingIds = user?.following?.keys?.toList() ?: emptyList()
-                val userIds = followingIds + currentUser.uid
-                
-                var foundPost: Post? = null
-                for (userId in userIds) {
-                    val userPostsSnapshot = database.getReference("posts")
-                        .orderByChild("userId")
-                        .equalTo(userId)
-                        .get()
-                        .await()
-                    
-                    val post = userPostsSnapshot.children
-                        .mapNotNull { it.getValue(Post::class.java) }
-                        .find { it.postId == postId }
-                    
-                    if (post != null) {
-                        foundPost = post
-                        break
-                    }
-                }
-
-                if (foundPost == null) {
-                    throw Exception("Post not found")
-                }
+                val post = postSnapshot.getValue(Post::class.java)
+                    ?: throw Exception("Post not found")
 
                 // Load user data for the post
                 val postUserSnapshot = database.getReference("users")
-                    .child(foundPost.userId)
+                    .child(post.userId)
                     .get()
                     .await()
                 val postUser = postUserSnapshot.getValue(User::class.java)
-                val postWithUserData = foundPost.copy(user = postUser ?: User())
+                val postWithUserData = post.copy(user = postUser ?: User())
 
-                _uiState.update { it.copy(posts = listOf(postWithUserData), isLoading = false) }
+                // Update state with current post
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        currentPost = postWithUserData,
+                        isLoading = false,
+                        error = null
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                Log.e("PostsSectionViewModel", "Error loading post: ${e.message}")
+                _uiState.update { it.copy(
+                    isLoading = false,
+                    error = e.message
+                ) }
             }
         }
     }

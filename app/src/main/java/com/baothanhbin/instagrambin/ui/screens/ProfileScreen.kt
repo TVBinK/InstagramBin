@@ -38,7 +38,6 @@ import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import androidx.navigation.NavController
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navController: androidx.navigation.NavController? = null) {
     val viewModel: ProfileViewModel = viewModel()
@@ -92,7 +91,7 @@ fun MainContent(
     navController: NavController?
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    Column(modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize().background(Color.White)) {
         ProfileSection(
             onEditProfileClick = onEditProfileClick,
             onFollowersClick = onFollowersClick,

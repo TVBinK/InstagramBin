@@ -33,6 +33,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadPosts()
     }
 
+    private fun getTimeAgo(timestamp: Long): String {
+        val currentTime = System.currentTimeMillis()
+        val diffInSeconds = (currentTime - timestamp) / 1000
+
+        return when {
+            diffInSeconds < 60 -> "Vừa xong"
+            diffInSeconds < 3600 -> "${diffInSeconds / 60} phút trước"
+            diffInSeconds < 86400 -> "${diffInSeconds / 3600} giờ trước"
+            diffInSeconds < 2592000 -> "${diffInSeconds / 86400} ngày trước"
+            diffInSeconds < 31536000 -> "${diffInSeconds / 2592000} tháng trước"
+            else -> "${diffInSeconds / 31536000} năm trước"
+        }
+    }
+
     fun loadPosts() {
         viewModelScope.launch {
             try {
@@ -65,14 +79,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 // Sort posts by timestamp
                 val sortedPosts = posts.sortedByDescending { it.timestamp }
 
-                // Load user data for each post
+                // Load user data for each post và thêm timeAgo
                 val postsWithUserData = sortedPosts.map { post ->
                     val postUserSnapshot = database.getReference("users")
                         .child(post.userId)
                         .get()
                         .await()
                     val postUser = postUserSnapshot.getValue(User::class.java)
-                    post.copy(user = postUser ?: User())
+                    post.copy(
+                        user = postUser ?: User(),
+                        timeAgo = getTimeAgo(post.timestamp)
+                    )
                 }
 
                 // Load friends (following)
@@ -102,5 +119,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             postRef.child("likesCount").setValue(newLikesCount).await()
             loadPosts()
         }
+    }
+
+    fun refresh() {
+        loadPosts()
     }
 } 

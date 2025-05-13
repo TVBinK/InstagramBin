@@ -27,6 +27,7 @@ import com.baothanhbin.instagrambin.R
 import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
+import androidx.compose.runtime.collectAsState
 
 data class BottomBarItem(val icon: Int, val route: String)
 
@@ -35,7 +36,8 @@ data class BottomBarItem(val icon: Int, val route: String)
 @Composable
 fun TopBar(
     currentRoute: String? = null,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    navController: NavController? = null
 ) {
     val showMenu = remember { mutableStateOf(false) }
 
@@ -101,13 +103,18 @@ fun TopBar(
                         )
                         Spacer(modifier = Modifier.width(20.dp))
                         Icon(
-                            modifier = Modifier.size(23.dp),
+                            modifier = Modifier
+                                .size(23.dp)
+                                .clickable { navController?.navigate("message") },
                             painter = painterResource(id = R.drawable.ic_send),
                             contentDescription = null
                         )
                     }
                 }
-            }
+            },
+            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                containerColor = Color.White
+            ),
         )
     }
 }
@@ -119,20 +126,21 @@ fun BottomBar(
     currentRoute: String? = null
 ) {
     val homeViewModel: HomeViewModel = viewModel()
-    val currentUser = homeViewModel.uiState.value.currentUser
+    val uiState by homeViewModel.uiState.collectAsState()
+    val currentUser = uiState.currentUser
     val bottomBarItems = listOf(
         BottomBarItem(R.drawable.ic_home, "home"),
         BottomBarItem(R.drawable.ic_search, "search"),
         BottomBarItem(R.drawable.ic_add, "add"),
         BottomBarItem(R.drawable.ic_profile, "profile")
     )
-
     if (currentRoute?.startsWith("user_profile/") != true) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
-                .padding(vertical = 10.dp),
+                .padding(vertical = 10.dp)
+                .background(Color.White),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {

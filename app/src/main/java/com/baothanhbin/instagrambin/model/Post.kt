@@ -9,5 +9,6 @@ data class Post(
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
     val user: User = User(),
-    val likes: Map<String, Boolean> = mapOf()
+    val likes: Map<String, Boolean> = mapOf(),
+    val timeAgo: String = ""
 )

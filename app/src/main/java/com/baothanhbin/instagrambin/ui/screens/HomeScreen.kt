@@ -38,10 +38,11 @@ import com.baothanhbin.instagrambin.ui.screen.TopBar
 import com.baothanhbin.instagrambin.viewmodel.HomeUiState
 import com.google.firebase.auth.FirebaseAuth
 
+
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
-    navController: NavController? = null
+    navController: NavController? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -53,7 +54,10 @@ fun HomeScreen(
                 top = innerPadding.calculateTopPadding(),
                 bottom = 72.dp
             ),
-            modifier = Modifier.fillMaxSize()
+            //set color background
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFFFFFFF))
         ) {
             // Stories là item đầu tiên
             item {
@@ -69,16 +73,26 @@ fun HomeScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(
                                     modifier = Modifier
-                                        .size(80.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.LightGray),
+                                        .border(
+                                            1.dp, Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xffff6f00),
+                                                    Color(0xffffeb35),
+                                                    Color(0xffff6f00),
+                                                    Color(0xffff2b99),
+                                                    Color(0xffff2bd1),
+                                                    Color(0xffff2bd1),
+                                                )
+                                            ), CircleShape
+                                        )
+                                        .size(82.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AsyncImage(
                                         model = user.profileImageUrl,
                                         contentDescription = "Your story",
                                         modifier = Modifier
-                                            .fillMaxSize()
+                                            .size(80.dp)
                                             .clip(CircleShape),
                                         contentScale = ContentScale.Crop
                                     )
@@ -91,16 +105,26 @@ fun HomeScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray),
+                                    .border(
+                                        1.dp, Brush.horizontalGradient(
+                                            listOf(
+                                                Color(0xffff6f00),
+                                                Color(0xffffeb35),
+                                                Color(0xffff6f00),
+                                                Color(0xffff2b99),
+                                                Color(0xffff2bd1),
+                                                Color(0xffff2bd1),
+                                            )
+                                        ), CircleShape
+                                    )
+                                    .size(82.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
                                     model = friend.profileImageUrl,
                                     contentDescription = friend.username,
                                     modifier = Modifier
-                                        .fillMaxSize()
+                                        .size(80.dp)
                                         .clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
@@ -115,20 +139,20 @@ fun HomeScreen(
                 PostItem(
                     post = post,
                     navController = navController,
-                    onLikeClick = { viewModel.toggleLike(post) },
-                    onCommentClick = { /* TODO: mở giao diện bình luận */ }
+                    onLikeClick = { viewModel.toggleLike(post) }
                 )
             }
         }
     }
 }
 
+
+
 @Composable
 fun PostItem(
     post: Post,
     navController: NavController?,
     onLikeClick: (Post) -> Unit,
-    onCommentClick: (Post) -> Unit
 ) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     val liked = currentUserId != null && post.likes.containsKey(currentUserId)
@@ -140,11 +164,17 @@ fun PostItem(
             .padding(bottom = 16.dp)
             .background(Color.White)
     ) {
-        // Post header
+        // Đường thẳng ngang ngăn cách giữa các post
+        Divider(
+            color = Color.Gray.copy(alpha = 0.5f),
+            thickness = 1.dp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+        //Post
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 5.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -181,6 +211,12 @@ fun PostItem(
             Text(
                 text = post.user.username,
                 fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = post.timeAgo,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
             )
         }
 
@@ -253,7 +289,8 @@ fun PostItem(
                 contentDescription = null,
                 modifier = Modifier
                     .size(24.dp)
-                    .clickable { onCommentClick(post) }
+                    .clickable { navController?.navigate("post_detail/${post.postId}") },
+                tint = Color.Black
             )
             Spacer(modifier = Modifier.width(16.dp))
             Icon(
@@ -276,124 +313,7 @@ fun PostItem(
                 text = "${post.user.username} ${post.caption}",
                 modifier = Modifier.padding(bottom = 4.dp)
             )
-            Text(
-                text = "2 giờ trước",
-                color = Color.Gray,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
 
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenPreview() {
-    val mockUser = User(
-        uid = "1",
-        username = "baothanhbin",
-        profileImageUrl = "https://randomuser.me/api/portraits/men/1.jpg"
-    )
-    val mockFriends = listOf(
-        User(uid = "2", username = "friend1", profileImageUrl = "https://randomuser.me/api/portraits/women/2.jpg"),
-        User(uid = "3", username = "friend2", profileImageUrl = "https://randomuser.me/api/portraits/men/3.jpg"),
-        User(uid = "4", username = "friend3", profileImageUrl = "https://randomuser.me/api/portraits/women/4.jpg")
-    )
-    val mockPosts = listOf(
-        Post(
-            postId = "p1",
-            userId = "2",
-            imageUrl = "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-            caption = "Caption 1",
-            user = mockFriends[0],
-            likesCount = 10
-        ),
-        Post(
-            postId = "p2",
-            userId = "3",
-            imageUrl = "https://images.unsplash.com/photo-1519125323398-675f0ddb6308",
-            caption = "Caption 2",
-            user = mockFriends[1],
-            likesCount = 5
-        )
-    )
-    val mockState = HomeUiState(
-        posts = mockPosts,
-        friends = mockFriends,
-        currentUser = mockUser
-    )
-    InstagramUiComposeTheme {
-        HomeScreenPreviewContent(mockState)
-    }
-}
-
-@Composable
-private fun HomeScreenPreviewContent(mockState: HomeUiState) {
-    // Không dùng viewModel, truyền trực tiếp state vào UI
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = 72.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                mockState.currentUser?.let { user ->
-                    item {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AsyncImage(
-                                    model = user.profileImageUrl,
-                                    contentDescription = "Your story",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                            Text("Tin của bạn", fontSize = 12.sp, maxLines = 1)
-                        }
-                    }
-                }
-                items(mockState.friends) { friend ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color.LightGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AsyncImage(
-                                model = friend.profileImageUrl,
-                                contentDescription = friend.username,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                        Text(friend.username, fontSize = 12.sp, maxLines = 1)
-                    }
-                }
-            }
-        }
-        items(mockState.posts) { post ->
-            PostItem(
-                post = post,
-                navController = null,
-                onLikeClick = { /* TODO: implement toggleLike */ },
-                onCommentClick = { /* TODO: implement comment click */ }
-            )
         }
     }
 }
