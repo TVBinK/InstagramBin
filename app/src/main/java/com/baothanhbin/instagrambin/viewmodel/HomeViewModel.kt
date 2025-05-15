@@ -39,10 +39,8 @@ class HomeViewModel(
     private val userRepository = UserRepository()
 
     private var isLoaded = false
-<<<<<<< HEAD
     private var currentUserCache: User? = null
-=======
->>>>>>> 1199fd0d18613f593123fa9fc23d999d6668db38
+
 
     init {
         // Do not auto-load here, use loadDataIfNeeded from HomeScreen
@@ -69,7 +67,6 @@ class HomeViewModel(
                     _uiState.update { it.copy(isLoading = true) }
                     val currentUserId = auth.currentUser?.uid ?: return@launch
                     
-<<<<<<< HEAD
                     // Load current user if not cached
                     if (currentUserCache == null) {
                         currentUserCache = userRepository.getUser(currentUserId)
@@ -79,25 +76,12 @@ class HomeViewModel(
                     val posts = postRepository.getPosts()
                     
                     // Load friends (following users)
-=======
-                    // Load current user
-                    val currentUser = userRepository.getUser(currentUserId)
-                    
-                    // Load posts
-                    val posts = postRepository.getPosts()
-                    
-                    // Load friends
->>>>>>> 1199fd0d18613f593123fa9fc23d999d6668db38
                     val friends = userRepository.getFriends(currentUserId)
                     
                     _uiState.update { 
                         it.copy(
                             posts = posts,
-<<<<<<< HEAD
                             currentUser = currentUserCache,
-=======
-                            currentUser = currentUser,
->>>>>>> 1199fd0d18613f593123fa9fc23d999d6668db38
                             friends = friends,
                             isLoading = false
                         )
@@ -120,12 +104,7 @@ class HomeViewModel(
             try {
                 _isRefreshing.value = true
                 val currentUserId = auth.currentUser?.uid ?: return@launch
-                
-<<<<<<< HEAD
-                // Load posts from current user and following users
-=======
-                // Load posts
->>>>>>> 1199fd0d18613f593123fa9fc23d999d6668db38
+
                 val posts = postRepository.getPosts()
                 
                 _uiState.update { 
