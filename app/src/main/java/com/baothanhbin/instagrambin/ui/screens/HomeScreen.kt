@@ -42,12 +42,17 @@ import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: HomeViewModel,
     navController: NavController? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing)
+
+    // Load data only once when the screen is first created
+    LaunchedEffect(Unit) {
+        viewModel.loadDataIfNeeded()
+    }
 
     LaunchedEffect(isRefreshing) {
         if (!isRefreshing) {
