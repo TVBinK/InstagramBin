@@ -38,8 +38,11 @@ class HomeViewModel(
     private val postRepository = PostRepository()
     private val userRepository = UserRepository()
 
+    private var isLoaded = false
+    private var currentUserCache: User? = null
+
     init {
-        loadData()
+        // Do not auto-load here, use loadDataIfNeeded from HomeScreen
     }
 
     private fun getTimeAgo(timestamp: Long): String {
@@ -56,53 +59,66 @@ class HomeViewModel(
         }
     }
 
-    private fun loadData() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            try {
-                val currentUserId = auth.currentUser?.uid
-                if (currentUserId != null) {
-                    val currentUser = userRepository.getUser(currentUserId)
-                    val friends = userRepository.getFriends(currentUserId)
+    fun loadDataIfNeeded() {
+        if (!isLoaded) {
+            viewModelScope.launch {
+                try {
+                    _uiState.update { it.copy(isLoading = true) }
+                    val currentUserId = auth.currentUser?.uid ?: return@launch
+                    
+                    // Load current user if not cached
+                    if (currentUserCache == null) {
+                        currentUserCache = userRepository.getUser(currentUserId)
+                    }
+                    
+                    // Load posts from current user and following users
                     val posts = postRepository.getPosts()
-
-                    _uiState.update {
+                    
+                    // Load friends (following users)
+                    val friends = userRepository.getFriends(currentUserId)
+                    
+                    _uiState.update { 
                         it.copy(
-                            currentUser = currentUser,
-                            friends = friends,
                             posts = posts,
+                            currentUser = currentUserCache,
+                            friends = friends,
+                            isLoading = false
+                        )
+                    }
+                    isLoaded = true
+                } catch (e: Exception) {
+                    _uiState.update { 
+                        it.copy(
+                            error = e.message,
                             isLoading = false
                         )
                     }
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
         }
     }
 
     fun refreshPosts() {
         viewModelScope.launch {
-            _isRefreshing.value = true
             try {
-                val currentUserId = auth.currentUser?.uid
-                if (currentUserId != null) {
-                    val currentUser = userRepository.getUser(currentUserId)
-                    val friends = userRepository.getFriends(currentUserId)
-                    val posts = postRepository.getPosts()
-
-                    _uiState.update {
-                        it.copy(
-                            currentUser = currentUser,
-                            friends = friends,
-                            posts = posts
-                        )
-                    }
+                _isRefreshing.value = true
+                val currentUserId = auth.currentUser?.uid ?: return@launch
+                
+                // Load posts from current user and following users
+                val posts = postRepository.getPosts()
+                
+                _uiState.update { 
+                    it.copy(
+                        posts = posts
+                    )
                 }
             } catch (e: Exception) {
-                // Handle error
+                _uiState.update { 
+                    it.copy(
+                        error = e.message
+                    )
+                }
             } finally {
-                delay(1000) // Add a small delay to show the refresh animation
                 _isRefreshing.value = false
             }
         }

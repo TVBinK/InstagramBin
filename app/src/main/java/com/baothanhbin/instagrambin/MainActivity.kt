@@ -43,6 +43,8 @@ import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModelFactory
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.ui.screens.PostDetailScreen
 import com.baothanhbin.instagrambin.ui.screens.MessageScreen
+import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
+import com.baothanhbin.instagrambin.ui.screens.UserProfileScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +68,7 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val authViewModel: AuthViewModel = viewModel()
                     val authState by authViewModel.authState.collectAsState()
+                    val homeViewModel: HomeViewModel = viewModel()
 
                     // Listen to current route
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -76,13 +79,13 @@ class MainActivity : ComponentActivity() {
 
                     Scaffold(
                         topBar = {
-                            if (currentRoute !in hideBarsRoutes && currentRoute != "search") {
+                            if (currentRoute !in hideBarsRoutes) {
                                 TopBar(
                                     currentRoute = currentRoute,
                                     onLogout = {
                                         authViewModel.signOut()
                                         navController.navigate("login") {
-                                            popUpTo(0) { inclusive = true }
+                                            popUpTo("home") { inclusive = true }
                                         }
                                     },
                                     navController = navController
@@ -132,7 +135,10 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable("home") {
-                                HomeScreen(navController = navController)
+                                HomeScreen(
+                                    viewModel = homeViewModel,
+                                    navController = navController
+                                )
                             }
 
                             composable("search") {
@@ -210,6 +216,12 @@ class MainActivity : ComponentActivity() {
                                     onBackClick = { navController.popBackStack() },
                                     onUserClick = { followerId ->
                                         navController.navigate("profile/$followerId")
+                                    },
+                                    onFollowClick = { followerId ->
+                                        followersViewModel.followUser(followerId)
+                                    },
+                                    onUnfollowClick = { followerId ->
+                                        followersViewModel.unfollowUser(followerId)
                                     }
                                 )
                             }
@@ -259,7 +271,10 @@ fun LoadingScreen() {
 }
 
 @Composable
-fun MainScreen(authViewModel: AuthViewModel = viewModel()) {
+fun MainScreen(
+    authViewModel: AuthViewModel = viewModel(),
+    homeViewModel: HomeViewModel = viewModel()
+) {
     val authState by authViewModel.authState.collectAsState()
 
     when (authState) {
@@ -276,7 +291,7 @@ fun MainScreen(authViewModel: AuthViewModel = viewModel()) {
             LoadingScreen()
         }
         is AuthState.Success -> {
-            HomeScreen()
+            HomeScreen(viewModel = homeViewModel)
         }
         is AuthState.Error -> {
             LoginScreen(

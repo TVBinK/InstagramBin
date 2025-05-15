@@ -140,7 +140,18 @@ class PostsSectionViewModel(application: Application) : AndroidViewModel(applica
                             currentPost
                         }
                     }
-                    currentState.copy(posts = updatedPosts)
+                    currentState.copy(
+                        posts = updatedPosts,
+                        currentPost = if (currentState.currentPost?.postId == post.postId) {
+                            currentState.currentPost.copy(
+                                likes = updatedLikes,
+                                likesCount = newLikesCount,
+                                user = currentState.currentPost.user
+                            )
+                        } else {
+                            currentState.currentPost
+                        }
+                    )
                 }
             } catch (e: Exception) {
                 Log.e("PostsSectionViewModel", "Error toggling like: ${e.message}")

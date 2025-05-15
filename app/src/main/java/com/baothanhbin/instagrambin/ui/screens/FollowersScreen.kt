@@ -24,13 +24,36 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.R
 import com.baothanhbin.instagrambin.model.User
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 
 @Composable
 fun FollowersScreen(
     followers: List<User>,
     onBackClick: () -> Unit,
-    onUserClick: (String) -> Unit
+    onUserClick: (String) -> Unit,
+    onFollowClick: (String) -> Unit,
+    onUnfollowClick: (String) -> Unit
 ) {
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val database = FirebaseDatabase.getInstance().reference
+    var followingStates by remember { mutableStateOf(mapOf<String, Boolean>()) }
+
+    LaunchedEffect(followers) {
+        val states = mutableMapOf<String, Boolean>()
+        followers.forEach { user ->
+            if (currentUser?.uid != null) {
+                database.child("users").child(currentUser.uid).child("following")
+                    .child(user.uid)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        states[user.uid] = snapshot.exists()
+                        followingStates = states
+                    }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             Row(
@@ -63,7 +86,10 @@ fun FollowersScreen(
             items(followers) { user ->
                 FollowerItem(
                     user = user,
-                    onUserClick = { onUserClick(user.uid) }
+                    onUserClick = { onUserClick(user.uid) },
+                    isFollowing = followingStates[user.uid] ?: false,
+                    onFollowClick = { onFollowClick(user.uid) },
+                    onUnfollowClick = { onUnfollowClick(user.uid) }
                 )
             }
         }
@@ -73,7 +99,10 @@ fun FollowersScreen(
 @Composable
 private fun FollowerItem(
     user: User,
-    onUserClick: () -> Unit
+    onUserClick: () -> Unit,
+    isFollowing: Boolean,
+    onFollowClick: () -> Unit,
+    onUnfollowClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -110,20 +139,21 @@ private fun FollowerItem(
         }
         
         Button(
-            onClick = { /* TODO: Handle follow/unfollow */ },
+            onClick = { if (isFollowing) onUnfollowClick() else onFollowClick() },
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF3797EF)
+                containerColor = if (isFollowing) Color.Gray else Color(0xFF3797EF)
             ),
             modifier = Modifier.padding(start = 8.dp)
         ) {
             Text(
-                text = "Theo dõi",
+                text = if (isFollowing) "Đang theo dõi" else "Theo dõi",
                 color = Color.White,
                 fontSize = 12.sp
             )
         }
     }
 }
+
 @Preview(showBackground = true)
 @Composable
 fun FollowersScreenPreview() {
@@ -139,6 +169,8 @@ fun FollowersScreenPreview() {
     FollowersScreen(
         followers = dummyFollowers,
         onBackClick = {},
-        onUserClick = {}
+        onUserClick = {},
+        onFollowClick = {},
+        onUnfollowClick = {}
     )
 }

@@ -157,6 +157,14 @@ fun BottomBar(
                                     navController.navigate(item.route) {
                                         launchSingleTop = true
                                         restoreState = true
+                                        if (item.route == "home") {
+                                            // Don't pop up to start destination for home screen
+                                            // This will preserve the home screen state
+                                        } else {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
+                                            }
+                                        }
                                     }
                                 } else {
                                     onNavigate(item.route)

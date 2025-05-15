@@ -37,6 +37,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.GenericTypeIndicator
 
 @Composable
 fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navController: androidx.navigation.NavController? = null) {
@@ -250,7 +253,8 @@ fun ProfileSection(
                 followers = user.followersCount,
                 following = user.followingCount,
                 onFollowersClick = onFollowersClick,
-                onFollowingClick = onFollowingClick
+                onFollowingClick = onFollowingClick,
+                profileUserId = user.uid
             )
         }
         BioSection(
@@ -410,8 +414,24 @@ fun FollowStatusBar(
     followers: Int = 0,
     following: Int = 0,
     onFollowersClick: () -> Unit = {},
-    onFollowingClick: () -> Unit = {}
+    onFollowingClick: () -> Unit = {},
+    profileUserId: String = ""
 ) {
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val database = FirebaseDatabase.getInstance().reference
+    var isFollowing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentUser?.uid, profileUserId) {
+        if (currentUser?.uid != null && profileUserId.isNotEmpty()) {
+            database.child("users").child(currentUser.uid).child("following")
+                .child(profileUserId)
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    isFollowing = snapshot.exists()
+                }
+        }
+    }
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceEvenly
@@ -436,7 +456,10 @@ fun FollowStatusBar(
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
-            Text(text = "Người theo dõi", fontSize = 12.sp)
+            Text(
+                text = if (isFollowing) "Đang theo dõi" else "Người theo dõi",
+                fontSize = 12.sp
+            )
         }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

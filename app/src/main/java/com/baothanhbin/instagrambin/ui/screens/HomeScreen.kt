@@ -42,12 +42,17 @@ import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: HomeViewModel,
     navController: NavController? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing)
+
+    // Load data only once when the screen is first created
+    LaunchedEffect(Unit) {
+        viewModel.loadDataIfNeeded()
+    }
 
     LaunchedEffect(isRefreshing) {
         if (!isRefreshing) {
@@ -245,7 +250,10 @@ fun PostItem(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = post.user.username,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { 
+                    navController?.navigate("profile/${post.user.uid}")
+                }
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
@@ -298,57 +306,75 @@ fun PostItem(
             }
         }
 
-        // Post actions
+        // Post actions and info
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(
-                painter = painterResource(
-                    id = if (liked) R.drawable.heart else R.drawable.heart_outline
-                ),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { 
-                        onLikeClick(post)
-                        showHeart = true
-                    },
-                tint = if (liked) Color.Red else Color.Black
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Icon(
-                painter = painterResource(id = R.drawable.ic_comment),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { navController?.navigate("post_detail/${post.postId}") },
-                tint = Color.Black
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Icon(
-                painter = painterResource(id = R.drawable.ic_send),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = if (liked) R.drawable.heart else R.drawable.heart_outline),
+                    contentDescription = "Like",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { onLikeClick(post) },
+                    tint = if (liked) Color.Red else Color.Black
+                )
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_comment),
+                    contentDescription = "Comment",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { navController?.navigate("post_detail/${post.postId}") },
+                    tint = Color.Black
+                )
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_send),
+                    contentDescription = "Share",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { /* onShareClick() */ },
+                    tint = Color.Black
+                )
+            }
         }
 
-        // Post caption and likes
+        // Likes and comments count
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Text(
+                text = "${post.likesCount} lượt thích",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (post.commentsCount > 0) {
+                Text(
+                    text = "Xem tất cả ${post.commentsCount} bình luận",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier
+                        .clickable { navController?.navigate("post_detail/${post.postId}") }
+                        .padding(vertical = 4.dp)
+                )
+            }
+        }
+
+        // Post caption
         Column(
             modifier = Modifier.padding(horizontal = 12.dp)
         ) {
             Text(
-                text = "${post.likesCount} lượt thích",
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            Text(
                 text = "${post.user.username} ${post.caption}",
                 modifier = Modifier.padding(bottom = 4.dp)
             )
-
         }
     }
 }

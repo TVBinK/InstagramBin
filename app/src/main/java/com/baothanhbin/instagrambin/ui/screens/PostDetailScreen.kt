@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.baothanhbin.instagrambin.R
 import com.baothanhbin.instagrambin.model.Post
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,6 +59,12 @@ fun PostDetailScreen(
     var commentText by remember { mutableStateOf("") }
     val postViewModel: PostsSectionViewModel = viewModel()
     val postState by postViewModel.uiState.collectAsState()
+    val homeViewModel: com.baothanhbin.instagrambin.viewmodel.HomeViewModel = viewModel()
+    val homeUiState by homeViewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        homeViewModel.loadDataIfNeeded()
+    }
 
     LaunchedEffect(postId) {
         viewModel.loadComments(postId)
@@ -114,9 +121,19 @@ fun PostDetailScreen(
                             item {
                                 PostDetailContent(
                                     post = post,
-                                    onLikeClick = { /* Handle like */ },
+                                    onLikeClick = { postViewModel.toggleLike(post) },
                                     onCommentClick = { /* Handle comment */ },
                                     onShareClick = { /* Handle share */ }
+                                )
+                            }
+
+                            // Hiển thị số lượng bình luận
+                            item {
+                                Text(
+                                    text = "${uiState.comments.size} bình luận",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             }
 
@@ -140,18 +157,38 @@ fun PostDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Avatar user hiện tại
-                            val homeViewModel: com.baothanhbin.instagrambin.viewmodel.HomeViewModel = viewModel()
-                            val homeUiState by homeViewModel.uiState.collectAsState()
                             val currentUser = homeUiState.currentUser
-                            AsyncImage(
-                                model = currentUser?.profileImageUrl,
-                                contentDescription = "Avatar",
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray),
-                                contentScale = ContentScale.Crop
-                            )
+                            
+                            if (currentUser?.profileImageUrl.isNullOrEmpty()) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.profile_pic),
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.LightGray),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(currentUser?.profileImageUrl)
+                                        .crossfade(300)
+                                        .size(64) // Load smaller size
+                                        .build(),
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.LightGray),
+                                    contentScale = ContentScale.Crop,
+                                    error = painterResource(id = R.drawable.profile_pic),
+                                    placeholder = painterResource(id = R.drawable.profile_pic),
+                                    onLoading = { /* Có thể thêm loading indicator nếu cần */ },
+                                    onSuccess = { /* Ảnh load thành công */ },
+                                    onError = { /* Xử lý lỗi nếu cần */ }
+                                )
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
                             TextField(
                                 value = commentText,
@@ -284,7 +321,9 @@ fun PostDetailContent(
                 Icon(
                     painter = painterResource(id = if (liked) R.drawable.heart else R.drawable.heart_outline),
                     contentDescription = "Likes",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { onLikeClick() },
                     tint = if (liked) Color.Red else Color.Black
                 )
                 Spacer(modifier = Modifier.width(4.dp))
