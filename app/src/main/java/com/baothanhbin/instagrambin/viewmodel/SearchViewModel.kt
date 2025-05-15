@@ -48,4 +48,27 @@ class SearchViewModel : ViewModel() {
             }
         }
     }
+
+    fun loadAllUsers() {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+                val database = FirebaseDatabase.getInstance().reference
+                val snapshot = database.child("users").get().await()
+                val users = snapshot.children.mapNotNull { it.getValue(UserProfile::class.java) }
+                val filtered = users.filter { 
+                    it.uid != FirebaseAuth.getInstance().currentUser?.uid
+                }
+                _uiState.value = _uiState.value.copy(
+                    searchResults = filtered,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message,
+                    isLoading = false
+                )
+            }
+        }
+    }
 } 

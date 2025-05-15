@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,9 @@ import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.viewmodel.SearchViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.baothanhbin.instagrambin.model.UserProfile
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun SearchScreen(
@@ -37,41 +41,123 @@ fun SearchScreen(
 ) {
     var query by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
+    var showAllUsers by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAllUsers) {
+        if (showAllUsers) {
+            viewModel.loadAllUsers()
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(Color(0xFFF8F9FA))
     ) {
-        // Thanh tìm kiếm
-        OutlinedTextField(
-            value = query,
-            onValueChange = {
-                query = it
-                if (it.isNotBlank()) viewModel.searchUserByUsername(it)
-            },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFF666666)) },
-            placeholder = { Text("Tìm kiếm username...", color = Color(0xFF999999)) },
-            shape = RoundedCornerShape(24.dp),
+        // Thanh tìm kiếm và nút hiển thị tất cả
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF666666),
-                unfocusedBorderColor = Color(0xFFCCCCCC),
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White
+                .padding(16.dp)
+                .shadow(4.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White
             )
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = {
+                        query = it
+                        showAllUsers = false
+                        if (it.isNotBlank()) viewModel.searchUserByUsername(it)
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = Color(0xFF666666),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    },
+                    placeholder = {
+                        Text(
+                            "Tìm kiếm ...",
+                            color = Color(0xFF999999),
+                            fontSize = 16.sp,
+                            maxLines = 1
+                        )
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF3797EF),
+                        unfocusedBorderColor = Color(0xFFE0E0E0),
+                        focusedContainerColor = Color(0xFFF8F9FA),
+                        unfocusedContainerColor = Color(0xFFF8F9FA)
+                    ),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
+                )
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Button(
+                    onClick = {
+                        showAllUsers = !showAllUsers
+                        if (showAllUsers) {
+                            query = ""
+                            viewModel.loadAllUsers()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (showAllUsers) Color(0xFF666666) else Color(0xFF3797EF)
+                    ),
+                    modifier = Modifier
+                        .height(48.dp)
+                        .shadow(2.dp, RoundedCornerShape(24.dp)),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text(
+                        text = if (showAllUsers) "Tìm kiếm" else "Tất cả",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (query.isBlank()) {
+        if (query.isBlank() && !showAllUsers) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Nhập username để tìm kiếm", color = Color(0xFF999999))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .padding(bottom = 16.dp),
+                        tint = Color(0xFFCCCCCC)
+                    )
+                    Text(
+                        "Nhập username để tìm kiếm",
+                        color = Color(0xFF999999),
+                        fontSize = 16.sp
+                    )
+                }
             }
         } else if (uiState.isLoading) {
             // Skeleton loading
@@ -80,36 +166,46 @@ fun SearchScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 items(5) {
-                    Row(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFE0E0E0))
+                            .padding(vertical = 4.dp)
+                            .shadow(2.dp, RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .width(120.dp)
-                                    .height(16.dp)
-                                    .background(Color(0xFFE0E0E0), shape = MaterialTheme.shapes.small)
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE0E0E0))
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .width(80.dp)
-                                    .height(12.dp)
-                                    .background(Color(0xFFE0E0E0), shape = MaterialTheme.shapes.small)
-                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(120.dp)
+                                        .height(16.dp)
+                                        .background(Color(0xFFE0E0E0), shape = MaterialTheme.shapes.small)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(80.dp)
+                                        .height(12.dp)
+                                        .background(Color(0xFFE0E0E0), shape = MaterialTheme.shapes.small)
+                                )
+                            }
                         }
                     }
-                    Divider(color = Color(0xFFE0E0E0))
                 }
             }
         } else if (uiState.searchResults.isEmpty()) {
@@ -117,7 +213,24 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Không tìm thấy người dùng", color = Color(0xFF999999))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .padding(bottom = 16.dp),
+                        tint = Color(0xFFCCCCCC)
+                    )
+                    Text(
+                        "Không tìm thấy người dùng",
+                        color = Color(0xFF999999),
+                        fontSize = 16.sp
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -135,36 +248,58 @@ fun SearchScreen(
                         label = "Scale Animation"
                     )
 
-                    Row(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                             .scale(scale)
+                            .shadow(2.dp, RoundedCornerShape(12.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = rememberRipple(bounded = true, color = Color(0xFF666666))
                             ) {
                                 isPressed = true
                                 onUserClick(user.uid)
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AsyncImage(
-                            model = user.profileImageUrl,
-                            contentDescription = "Avatar",
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFE0E0E0)),
-                            contentScale = ContentScale.Crop
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(user.username, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
-                            Text(user.fullName, color = Color(0xFF666666), fontSize = 13.sp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = user.profileImageUrl,
+                                contentDescription = "Avatar",
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, Color(0xFFE0E0E0), CircleShape)
+                                    .background(Color(0xFFF8F9FA)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    user.username,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF333333),
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    user.fullName,
+                                    color = Color(0xFF666666),
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
-                    Divider(color = Color(0xFFE0E0E0))
                 }
             }
         }
