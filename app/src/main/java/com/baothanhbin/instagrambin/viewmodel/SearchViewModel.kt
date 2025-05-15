@@ -10,25 +10,42 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
+data class SearchUiState(
+    val searchResults: List<UserProfile> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
 class SearchViewModel : ViewModel() {
-    private val _searchResults = MutableStateFlow<List<UserProfile>>(emptyList())
-    val searchResults: StateFlow<List<UserProfile>> = _searchResults
+    private val _uiState = MutableStateFlow(SearchUiState())
+    val uiState: StateFlow<SearchUiState> = _uiState
 
     fun searchUserByUsername(username: String) {
         viewModelScope.launch {
-            val database = FirebaseDatabase.getInstance().reference
-            val snapshot = database.child("users")
-                .orderByChild("username")
-                .startAt(username)
-                .endAt(username + "\uf8ff")
-                .get()
-                .await()
-            val users = snapshot.children.mapNotNull { it.getValue(UserProfile::class.java) }
-            val filtered = users.filter { 
-                it.username.contains(username, ignoreCase = true) &&
-                it.uid != FirebaseAuth.getInstance().currentUser?.uid
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+                val database = FirebaseDatabase.getInstance().reference
+                val snapshot = database.child("users")
+                    .orderByChild("username")
+                    .startAt(username)
+                    .endAt(username + "\uf8ff")
+                    .get()
+                    .await()
+                val users = snapshot.children.mapNotNull { it.getValue(UserProfile::class.java) }
+                val filtered = users.filter { 
+                    it.username.contains(username, ignoreCase = true) &&
+                    it.uid != FirebaseAuth.getInstance().currentUser?.uid
+                }
+                _uiState.value = _uiState.value.copy(
+                    searchResults = filtered,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message,
+                    isLoading = false
+                )
             }
-            _searchResults.value = filtered
         }
     }
 } 

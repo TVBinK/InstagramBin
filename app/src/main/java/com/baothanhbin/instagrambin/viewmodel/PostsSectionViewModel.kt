@@ -133,7 +133,8 @@ class PostsSectionViewModel(application: Application) : AndroidViewModel(applica
                         if (currentPost.postId == post.postId) {
                             currentPost.copy(
                                 likes = updatedLikes,
-                                likesCount = newLikesCount
+                                likesCount = newLikesCount,
+                                user = currentPost.user
                             )
                         } else {
                             currentPost

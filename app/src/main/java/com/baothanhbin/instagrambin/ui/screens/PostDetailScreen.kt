@@ -43,6 +43,7 @@ import androidx.navigation.compose.rememberNavController
 import com.baothanhbin.instagrambin.viewmodel.CommentViewModel
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.model.Comment
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,18 +73,25 @@ fun PostDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Comments") },
+                title = { Text("Chi tiết bài viết") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
+                )
             )
-        }
+        },
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(paddingValues)
         ) {
             if (postState.isLoading) {
@@ -214,6 +222,9 @@ fun PostDetailContent(
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit
 ) {
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    val liked = currentUserId != null && post.likes.containsKey(currentUserId)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -271,9 +282,10 @@ fun PostDetailContent(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(id = if (post.likes.isNotEmpty()) R.drawable.heart else R.drawable.heart_outline),
+                    painter = painterResource(id = if (liked) R.drawable.heart else R.drawable.heart_outline),
                     contentDescription = "Likes",
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(24.dp),
+                    tint = if (liked) Color.Red else Color.Black
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = post.likesCount.toString())

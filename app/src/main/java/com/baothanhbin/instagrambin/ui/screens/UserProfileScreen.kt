@@ -7,7 +7,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +36,7 @@ import com.baothanhbin.instagrambin.model.User
 import com.baothanhbin.instagrambin.viewmodel.UserProfileUiState
 import com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 
 @Composable
 fun UserProfileScreenContent(
@@ -71,11 +74,13 @@ fun UserProfileScreenContent(
                     modifier = Modifier.clickable { /* TODO: Show options menu */ }
                 )
             }
-        }
+        },
+        containerColor = Color.White
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(padding)
         ) {
             // Profile Header
@@ -212,7 +217,9 @@ fun UserProfileScreenContent(
 
             // Posts Grid
             item {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     // Grid Header
                     Row(
                         modifier = Modifier
@@ -229,24 +236,29 @@ fun UserProfileScreenContent(
                     }
 
                     // Posts Grid
-                    LazyRow(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(400.dp)
                     ) {
-                        items(state.posts) { post ->
-                            Box(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .padding(1.dp)
-                                    .clickable { onPostClick(post) }
-                            ) {
-                                AsyncImage(
-                                    model = post.imageUrl,
-                                    contentDescription = "Post",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(state.posts) { post ->
+                                Box(
+                                    modifier = Modifier
+                                        .aspectRatio(1f)
+                                        .padding(1.dp)
+                                        .clickable { onPostClick(post) }
+                                ) {
+                                    AsyncImage(
+                                        model = post.imageUrl,
+                                        contentDescription = "Post",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                             }
                         }
                     }
@@ -259,8 +271,8 @@ fun UserProfileScreenContent(
 @Composable
 fun UserProfileScreen(
     viewModel: UserProfileViewModel,
+    navController: NavController,
     onBackClick: () -> Unit,
-    onPostClick: (Post) -> Unit,
     onFollowClick: () -> Unit,
     onUnfollowClick: () -> Unit,
     onMessageClick: () -> Unit,
@@ -271,7 +283,9 @@ fun UserProfileScreen(
     UserProfileScreenContent(
         state = state,
         onBackClick = onBackClick,
-        onPostClick = onPostClick,
+        onPostClick = { post -> 
+            navController.navigate("post_detail/${post.postId}")
+        },
         onFollowClick = onFollowClick,
         onUnfollowClick = onUnfollowClick,
         onMessageClick = onMessageClick,

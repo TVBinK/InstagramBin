@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.baothanhbin.instagrambin.R
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun SplashScreen(
@@ -45,7 +46,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -63,7 +64,7 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Instagram",
-                color = MaterialTheme.colorScheme.primary,
+                color = Color(0xffff6f00),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.alpha(alphaAnim.value)

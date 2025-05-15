@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.baothanhbin.instagrambin.model.Post
 import com.baothanhbin.instagrambin.model.User
+import com.baothanhbin.instagrambin.repository.PostRepository
+import com.baothanhbin.instagrambin.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,24 +15,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.delay
 
 data class HomeUiState(
     val posts: List<Post> = emptyList(),
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val error: String? = null,
     val friends: List<User> = emptyList(),
     val currentUser: User? = null
 )
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
+class HomeViewModel(
+    application: Application
+) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val auth = FirebaseAuth.getInstance()
-    private val database = FirebaseDatabase.getInstance()
+    private val postRepository = PostRepository()
+    private val userRepository = UserRepository()
 
     init {
-        loadPosts()
+        loadData()
     }
 
     private fun getTimeAgo(timestamp: Long): String {
@@ -47,81 +56,73 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadPosts() {
+    private fun loadData() {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
             try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-                
-                // Get current user's following list
-                val currentUser = auth.currentUser ?: throw Exception("User not logged in")
-                val userRef = database.getReference("users").child(currentUser.uid)
-                val userSnapshot = userRef.get().await()
-                val user = userSnapshot.getValue(User::class.java)
-                
-                // Get posts from current user and users they follow
-                val followingIds = user?.following?.keys?.toList() ?: emptyList()
-                val userIds = followingIds + currentUser.uid
-                
-                val posts = mutableListOf<Post>()
-                for (userId in userIds) {
-                    val userPostsSnapshot = database.getReference("posts")
-                        .orderByChild("userId")
-                        .equalTo(userId)
-                        .get()
-                        .await()
-                    
-                    val userPosts = userPostsSnapshot.children.mapNotNull { 
-                        it.getValue(Post::class.java) 
+                val currentUserId = auth.currentUser?.uid
+                if (currentUserId != null) {
+                    val currentUser = userRepository.getUser(currentUserId)
+                    val friends = userRepository.getFriends(currentUserId)
+                    val posts = postRepository.getPosts()
+
+                    _uiState.update {
+                        it.copy(
+                            currentUser = currentUser,
+                            friends = friends,
+                            posts = posts,
+                            isLoading = false
+                        )
                     }
-                    posts.addAll(userPosts)
                 }
-
-                // Sort posts by timestamp
-                val sortedPosts = posts.sortedByDescending { it.timestamp }
-
-                // Load user data for each post và thêm timeAgo
-                val postsWithUserData = sortedPosts.map { post ->
-                    val postUserSnapshot = database.getReference("users")
-                        .child(post.userId)
-                        .get()
-                        .await()
-                    val postUser = postUserSnapshot.getValue(User::class.java)
-                    post.copy(
-                        user = postUser ?: User(),
-                        timeAgo = getTimeAgo(post.timestamp)
-                    )
-                }
-
-                // Load friends (following)
-                val friends = mutableListOf<User>()
-                for (friendId in followingIds) {
-                    val friendSnapshot = database.getReference("users").child(friendId).get().await()
-                    friendSnapshot.getValue(User::class.java)?.let { friends.add(it) }
-                }
-
-                _uiState.update { it.copy(posts = postsWithUserData, isLoading = false, friends = friends, currentUser = user) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
         }
     }
 
-    fun toggleLike(post: Post) {
+    fun refreshPosts() {
         viewModelScope.launch {
-            val currentUser = auth.currentUser ?: return@launch
-            val postRef = database.getReference("posts").child(post.postId)
-            val isLiked = post.likes.containsKey(currentUser.uid)
-            val updatedLikes = post.likes.toMutableMap().apply {
-                if (isLiked) remove(currentUser.uid) else put(currentUser.uid, true)
+            _isRefreshing.value = true
+            try {
+                val currentUserId = auth.currentUser?.uid
+                if (currentUserId != null) {
+                    val currentUser = userRepository.getUser(currentUserId)
+                    val friends = userRepository.getFriends(currentUserId)
+                    val posts = postRepository.getPosts()
+
+                    _uiState.update {
+                        it.copy(
+                            currentUser = currentUser,
+                            friends = friends,
+                            posts = posts
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                delay(1000) // Add a small delay to show the refresh animation
+                _isRefreshing.value = false
             }
-            val newLikesCount = if (isLiked) post.likesCount - 1 else post.likesCount + 1
-            postRef.child("likes").setValue(updatedLikes).await()
-            postRef.child("likesCount").setValue(newLikesCount).await()
-            loadPosts()
         }
     }
 
-    fun refresh() {
-        loadPosts()
+    fun toggleLike(post: Post) {
+        viewModelScope.launch {
+            try {
+                val currentUserId = auth.currentUser?.uid
+                if (currentUserId != null) {
+                    val updatedPost = postRepository.toggleLike(post.postId, currentUserId)
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            posts = currentState.posts.map { if (it.postId == post.postId) updatedPost else it }
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
     }
 } 

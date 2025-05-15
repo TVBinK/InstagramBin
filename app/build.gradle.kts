@@ -48,7 +48,9 @@ android {
         implementation("androidx.compose.ui:ui")
         implementation("androidx.compose.ui:ui-graphics")
         implementation("androidx.compose.ui:ui-tooling-preview")
-        implementation("androidx.compose.material3:material3")
+        implementation("androidx.compose.material3:material3:1.2.0")
+        implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
+        implementation("com.google.accompanist:accompanist-swiperefresh:0.32.0")
         implementation("androidx.navigation:navigation-testing:2.8.9")
         implementation(libs.firebase.auth)
         implementation(libs.androidx.credentials)
@@ -67,5 +69,5 @@ android {
         implementation("io.coil-kt:coil-compose:2.7.0")
         implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
         implementation("com.cloudinary:cloudinary-android:2.3.1")
-        implementation("androidx.compose.material:material-icons-extended:<version>")
+        implementation("androidx.compose.material:material-icons-extended:1.5.4")
     }

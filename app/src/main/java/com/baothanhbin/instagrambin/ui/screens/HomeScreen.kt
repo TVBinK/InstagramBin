@@ -28,8 +28,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.baothanhbin.instagrambin.R
 import com.baothanhbin.instagrambin.model.Post
-import com.baothanhbin.instagrambin.model.User
-import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
@@ -37,116 +35,153 @@ import androidx.navigation.NavController
 import com.baothanhbin.instagrambin.ui.screen.TopBar
 import com.baothanhbin.instagrambin.viewmodel.HomeUiState
 import com.google.firebase.auth.FirebaseAuth
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     navController: NavController? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing)
+
+    LaunchedEffect(isRefreshing) {
+        if (!isRefreshing) {
+            swipeRefreshState.isRefreshing = false
+        }
+    }
 
     Scaffold(
         topBar = { TopBar(currentRoute = "home") }
     ) { innerPadding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding(),
-                bottom = 72.dp
-            ),
-            //set color background
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFFFFFFF))
+        SwipeRefresh(
+            state = swipeRefreshState,
+            onRefresh = { viewModel.refreshPosts() },
+            indicator = { state, trigger ->
+                SwipeRefreshIndicator(
+                    state = state,
+                    refreshTriggerDistance = trigger,
+                    backgroundColor = Color.White,
+                    contentColor = Color(0xffff6f00),
+                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
+                )
+            }
         ) {
-            // Stories là item đầu tiên
-            item {
-                LazyRow(
+            if (uiState.isLoading) {
+                // Skeleton cho posts
+                LazyColumn(
+                    contentPadding = PaddingValues(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = 72.dp
+                    ),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxSize()
+                        .background(Color(0xFFFFFFFF))
                 ) {
-                    uiState.currentUser?.let { user ->
-                        item {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(
-                                    modifier = Modifier
-                                        .border(
-                                            1.dp, Brush.horizontalGradient(
-                                                listOf(
-                                                    Color(0xffff6f00),
-                                                    Color(0xffffeb35),
-                                                    Color(0xffff6f00),
-                                                    Color(0xffff2b99),
-                                                    Color(0xffff2bd1),
-                                                    Color(0xffff2bd1),
+                    items(3) { PostSkeleton() }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = 72.dp
+                    ),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFFFFFFF))
+                ) {
+                    // Stories là item đầu tiên
+                    item {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            uiState.currentUser?.let { user ->
+                                item {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(
+                                            modifier = Modifier
+                                                .border(
+                                                    1.dp, Brush.horizontalGradient(
+                                                        listOf(
+                                                            Color(0xffff6f00),
+                                                            Color(0xffffeb35),
+                                                            Color(0xffff6f00),
+                                                            Color(0xffff2b99),
+                                                            Color(0xffff2bd1),
+                                                            Color(0xffff2bd1),
+                                                        )
+                                                    ), CircleShape
                                                 )
-                                            ), CircleShape
-                                        )
-                                        .size(82.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    AsyncImage(
-                                        model = user.profileImageUrl,
-                                        contentDescription = "Your story",
-                                        modifier = Modifier
-                                            .size(80.dp)
-                                            .clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
+                                                .size(82.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            AsyncImage(
+                                                model = user.profileImageUrl,
+                                                contentDescription = "Your story",
+                                                modifier = Modifier
+                                                    .size(80.dp)
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        Text("Tin của bạn", fontSize = 12.sp, maxLines = 1)
+                                    }
                                 }
-                                Text("Tin của bạn", fontSize = 12.sp, maxLines = 1)
+                            }
+                            items(uiState.friends) { friend ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .border(
+                                                1.dp, Brush.horizontalGradient(
+                                                    listOf(
+                                                        Color(0xffff6f00),
+                                                        Color(0xffffeb35),
+                                                        Color(0xffff6f00),
+                                                        Color(0xffff2b99),
+                                                        Color(0xffff2bd1),
+                                                        Color(0xffff2bd1),
+                                                    )
+                                                ), CircleShape
+                                            )
+                                            .size(82.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = friend.profileImageUrl,
+                                            contentDescription = friend.username,
+                                            modifier = Modifier
+                                                .size(80.dp)
+                                                .clip(CircleShape),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    Text(friend.username, fontSize = 12.sp, maxLines = 1)
+                                }
                             }
                         }
                     }
-                    items(uiState.friends) { friend ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .border(
-                                        1.dp, Brush.horizontalGradient(
-                                            listOf(
-                                                Color(0xffff6f00),
-                                                Color(0xffffeb35),
-                                                Color(0xffff6f00),
-                                                Color(0xffff2b99),
-                                                Color(0xffff2bd1),
-                                                Color(0xffff2bd1),
-                                            )
-                                        ), CircleShape
-                                    )
-                                    .size(82.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AsyncImage(
-                                    model = friend.profileImageUrl,
-                                    contentDescription = friend.username,
-                                    modifier = Modifier
-                                        .size(80.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                            Text(friend.username, fontSize = 12.sp, maxLines = 1)
-                        }
+                    // Các post
+                    items(uiState.posts) { post ->
+                        PostItem(
+                            post = post,
+                            navController = navController,
+                            onLikeClick = { viewModel.toggleLike(post) }
+                        )
                     }
                 }
-            }
-            // Các post
-            items(uiState.posts) { post ->
-                PostItem(
-                    post = post,
-                    navController = navController,
-                    onLikeClick = { viewModel.toggleLike(post) }
-                )
             }
         }
     }
 }
-
-
 
 @Composable
 fun PostItem(
@@ -315,6 +350,62 @@ fun PostItem(
             )
 
         }
+    }
+}
+
+@Composable
+fun PostSkeleton() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+            .background(Color.White)
+    ) {
+        Divider(
+            color = Color.Gray.copy(alpha = 0.5f),
+            thickness = 1.dp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 5.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(33.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE3E2E2))
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .height(16.dp)
+                    .background(Color(0xFFE3E2E2), shape = MaterialTheme.shapes.small)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .background(Color(0xFFE3E2E2))
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .width(120.dp)
+                .height(16.dp)
+                .background(Color(0xFFE3E2E2), shape = MaterialTheme.shapes.small)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .width(200.dp)
+                .height(16.dp)
+                .background(Color(0xFFE3E2E2), shape = MaterialTheme.shapes.small)
+        )
     }
 }
 

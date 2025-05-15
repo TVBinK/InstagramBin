@@ -188,8 +188,8 @@ class MainActivity : ComponentActivity() {
                                 }
                                 com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
                                     viewModel = userProfileViewModel,
+                                    navController = navController,
                                     onBackClick = { navController.popBackStack() },
-                                    onPostClick = { /* TODO: handle post click */ },
                                     onFollowClick = { userProfileViewModel.toggleFollow() },
                                     onUnfollowClick = { userProfileViewModel.toggleFollow() },
                                     onMessageClick = { /* TODO: handle message click */ },
