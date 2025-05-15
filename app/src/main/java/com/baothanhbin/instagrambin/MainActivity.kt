@@ -44,7 +44,10 @@ import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.ui.screens.PostDetailScreen
 import com.baothanhbin.instagrambin.ui.screens.MessageScreen
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
+<<<<<<< HEAD
 import com.baothanhbin.instagrambin.ui.screens.UserProfileScreen
+=======
+>>>>>>> 1199fd0d18613f593123fa9fc23d999d6668db38
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
