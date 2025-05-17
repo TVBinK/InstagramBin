@@ -1,7 +1,5 @@
 package com.baothanhbin.instagrambin.model
 
-import androidx.credentials.PasswordCredential
-
 data class User(
     val uid: String = "",
     val email: String = "",

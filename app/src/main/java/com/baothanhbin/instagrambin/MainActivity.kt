@@ -37,14 +37,16 @@ import android.app.Application
 import androidx.compose.ui.platform.LocalContext
 import com.baothanhbin.instagrambin.ui.screen.BottomBar
 import com.baothanhbin.instagrambin.ui.screen.TopBar
+import com.baothanhbin.instagrambin.ui.screens.ChatScreen
 import com.baothanhbin.instagrambin.ui.screens.HomeScreen
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModel
 import com.baothanhbin.instagrambin.viewmodel.EditProfileViewModelFactory
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.ui.screens.PostDetailScreen
-import com.baothanhbin.instagrambin.ui.screens.MessageScreen
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
 import com.baothanhbin.instagrambin.ui.screens.UserProfileScreen
+import com.baothanhbin.instagrambin.ui.screens.ChatListScreen
+import com.baothanhbin.instagrambin.ui.screens.FullImageScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,7 +77,15 @@ class MainActivity : ComponentActivity() {
                     val currentRoute = navBackStackEntry?.destination?.route
 
                     // Routes that should hide navigation bars
-                    val hideBarsRoutes = listOf("add", "post_screen/{imageUris}", "login", "signup", "splash")
+                    val hideBarsRoutes = listOf(
+                        "add", 
+                        "post_screen/{imageUris}", 
+                        "login", 
+                        "signup", 
+                        "splash",
+                        "message",
+                        "chat/{userId}"
+                    )
 
                     Scaffold(
                         topBar = {
@@ -198,7 +208,9 @@ class MainActivity : ComponentActivity() {
                                     onBackClick = { navController.popBackStack() },
                                     onFollowClick = { userProfileViewModel.toggleFollow() },
                                     onUnfollowClick = { userProfileViewModel.toggleFollow() },
-                                    onMessageClick = { /* TODO: handle message click */ },
+                                    onMessageClick = {
+                                        navController.navigate("chat/$userId")
+                                    },
                                     onFollowersClick = { navController.navigate("followers/$userId") },
                                     onFollowingClick = { navController.navigate("following/$userId") }
                                 )
@@ -250,7 +262,68 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable("message") { MessageScreen() }
+                            composable("message") {
+                                ChatListScreen(
+                                    onBackClick = { navController.popBackStack() },
+                                    onChatClick = { user ->
+                                        navController.navigate("chat/${user.uid}")
+                                    },
+                                    onNewMessageClick = {
+                                        navController.navigate("search") {
+                                            // Pop up to the start destination to avoid building up a large stack
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
+                                            }
+                                            // Avoid multiple copies of the same destination
+                                            launchSingleTop = true
+                                            // Restore state when reselecting a previously selected item
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                            }
+
+                            composable("chat/{userId}") { backStackEntry ->
+                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
+                                val uiState by userProfileViewModel.uiState.collectAsState()
+                                
+                                LaunchedEffect(userId) {
+                                    userProfileViewModel.setUserId(userId)
+                                }
+
+                                uiState.user?.let { userData ->
+                                    ChatScreen(
+                                        user = userData,
+                                        onBackClick = { navController.popBackStack() },
+                                        navController = navController
+                                    )
+                                } ?: run {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
+                            }
+
+                            composable("image_view/{imageUrl}") { backStackEntry ->
+                                val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
+                                val previousEntry = navController.previousBackStackEntry
+                                val previousRoute = previousEntry?.destination?.route
+                                val userId = previousEntry?.arguments?.getString("userId")
+                                FullImageScreen(
+                                    imageUrl = Uri.decode(imageUrl),
+                                    onBack = {
+                                        if (previousRoute?.startsWith("chat/") == true) {
+                                            navController.popBackStack(previousRoute, false)
+                                        } else {
+                                            navController.popBackStack()
+                                        }
+                                    }
+                                )
+                            }
 
                         }
                     }
