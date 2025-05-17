@@ -29,7 +29,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.viewmodel.SearchViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.baothanhbin.instagrambin.model.UserProfile
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow

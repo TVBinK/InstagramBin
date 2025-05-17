@@ -82,7 +82,8 @@ class UserProfileViewModel(application: Application) : AndroidViewModel(applicat
                     // Update user with followers and following maps
                     val updatedUser = user?.copy(
                         followers = followersMap,
-                        following = followingMap
+                        following = followingMap,
+                        followingState = isFollowing
                     )
                     
                     _uiState.update { 

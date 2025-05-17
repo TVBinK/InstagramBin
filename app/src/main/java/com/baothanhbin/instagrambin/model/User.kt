@@ -9,7 +9,8 @@ data class User(
     val bio: String = "",
     val followers: Map<String, Boolean> = mapOf(),
     val following: Map<String, Boolean> = mapOf(),
-    val gender: String = ""
+    val gender: String = "",
+    val followingState: Boolean = false
 ) {
     // Computed properties to get counts
     val followersCount: Int get() = followers.size
