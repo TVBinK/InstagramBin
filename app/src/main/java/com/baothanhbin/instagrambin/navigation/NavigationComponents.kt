@@ -8,10 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,13 +36,12 @@ fun TopBar(
     onLogout: () -> Unit = {},
     navController: NavController? = null
 ) {
-    val showMenu = remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     if (currentRoute == "profile" || currentRoute == "home" || currentRoute?.startsWith("user_profile/") == true) {
         TopAppBar(
             title = {
-                if (currentRoute == "profile") {
-                } else if (currentRoute == "home") {
+                if (currentRoute == "home") {
                     Icon(
                         modifier = Modifier
                             .height(40.dp)
@@ -56,59 +52,62 @@ fun TopBar(
                 }
             },
             actions = {
-                if (currentRoute == "profile") {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(end = 14.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Notifications,
-                            contentDescription = "Notifications",
-                            modifier = Modifier.size(30.dp),
-                            tint = Color.Black
-                        )
-                        Box {
+                when (currentRoute) {
+                    "profile" -> {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(end = 14.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More",
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clickable { showMenu.value = !showMenu.value },
+                                imageVector = Icons.Outlined.Notifications,
+                                contentDescription = "Notifications",
+                                modifier = Modifier.size(30.dp),
                                 tint = Color.Black
                             )
-                            DropdownMenu(
-                                expanded = showMenu.value,
-                                onDismissRequest = { showMenu.value = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Đăng xuất") },
-                                    onClick = {
-                                        showMenu.value = false
-                                        onLogout()
-                                    }
+                            Box {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More",
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clickable { showMenu = !showMenu },
+                                    tint = Color.Black
                                 )
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Đăng xuất") },
+                                        onClick = {
+                                            showMenu = false
+                                            onLogout()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
-                } else if (currentRoute == "home"){
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(end = 14.dp)
-                    ) {
-                        Icon(
-                            modifier = Modifier.size(23.dp),
-                            painter = painterResource(id = R.drawable.ic_heart),
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(20.dp))
-                        Icon(
-                            modifier = Modifier
-                                .size(23.dp)
-                                .clickable { navController?.navigate("message") },
-                            painter = painterResource(id = R.drawable.ic_send),
-                            contentDescription = null
-                        )
+                    "home" -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(end = 14.dp)
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(23.dp),
+                                painter = painterResource(id = R.drawable.ic_heart),
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(20.dp))
+                            Icon(
+                                modifier = Modifier
+                                    .size(23.dp)
+                                    .clickable { navController?.navigate("message") },
+                                painter = painterResource(id = R.drawable.ic_send),
+                                contentDescription = null
+                            )
+                        }
                     }
                 }
             },
@@ -122,25 +121,25 @@ fun TopBar(
 @Composable
 fun BottomBar(
     navController: NavController? = null,
-    onNavigate: (String) -> Unit = {},
     currentRoute: String? = null
 ) {
     val homeViewModel: HomeViewModel = viewModel()
     val uiState by homeViewModel.uiState.collectAsState()
     val currentUser = uiState.currentUser
+    
     val bottomBarItems = listOf(
         BottomBarItem(R.drawable.ic_home, "home"),
         BottomBarItem(R.drawable.ic_search, "search"),
         BottomBarItem(R.drawable.ic_add, "add"),
         BottomBarItem(R.drawable.ic_profile, "profile")
     )
+
     if (currentRoute?.startsWith("user_profile/") != true) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
-                .padding(vertical = 10.dp)
-                .background(Color.White),
+                .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {
@@ -153,21 +152,14 @@ fun BottomBar(
                         .background(if (isSelected) Color.LightGray else Color.Transparent)
                         .clickable {
                             if (currentRoute != item.route) {
-                                if (navController != null) {
-                                    navController.navigate(item.route) {
-                                        launchSingleTop = true
-                                        restoreState = true
-                                        if (item.route == "home") {
-                                            // Don't pop up to start destination for home screen
-                                            // This will preserve the home screen state
-                                        } else {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
-                                            }
+                                navController?.navigate(item.route) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                    if (item.route != "home") {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
                                         }
                                     }
-                                } else {
-                                    onNavigate(item.route)
                                 }
                             }
                         },

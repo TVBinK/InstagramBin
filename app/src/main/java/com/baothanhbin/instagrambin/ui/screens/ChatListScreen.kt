@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.model.User
 import com.baothanhbin.instagrambin.model.Message
@@ -153,11 +154,9 @@ fun ChatListScreen(
     onBackClick: () -> Unit,
     onChatClick: (User) -> Unit,
     onNewMessageClick: () -> Unit,
-    chatListViewModel: ChatListViewModel = viewModel(
-        factory = ViewModelProvider.AndroidViewModelFactory(LocalContext.current.applicationContext as Application)
-    ),
     searchViewModel: SearchViewModel = viewModel()
 ) {
+    val chatListViewModel: ChatListViewModel = viewModel()
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     val chatListState by chatListViewModel.uiState.collectAsState()

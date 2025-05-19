@@ -17,35 +17,40 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.delay
 
+// Lớp dữ liệu lưu trạng thái giao diện của màn hình chính
 data class HomeUiState(
-    val posts: List<Post> = emptyList(),
-    val isLoading: Boolean = true,
-    val error: String? = null,
-    val friends: List<User> = emptyList(),
-    val currentUser: User? = null
+    val posts: List<Post> = emptyList(), // Danh sách bài đăng
+    val isLoading: Boolean = true, // Trạng thái đang tải dữ liệu
+    val error: String? = null, // Lỗi nếu có khi tải dữ liệu
+    val friends: List<User> = emptyList(), // Danh sách bạn bè (người dùng đang theo dõi)
+    val currentUser: User? = null // Thông tin người dùng hiện tại
 )
 
+// ViewModel quản lý dữ liệu và logic cho màn hình chính
 class HomeViewModel(
-    application: Application
+    application: Application // Context ứng dụng
 ) : AndroidViewModel(application) {
+    // StateFlow để lưu và cập nhật trạng thái giao diện
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    // StateFlow để theo dõi trạng thái làm mới dữ liệu
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    // Instance của FirebaseAuth để quản lý xác thực người dùng
     private val auth = FirebaseAuth.getInstance()
+    // Repository để lấy dữ liệu bài đăng
     private val postRepository = PostRepository()
+    // Repository để lấy dữ liệu người dùng
     private val userRepository = UserRepository()
 
+    // Biến kiểm tra xem dữ liệu đã được tải lần đầu chưa
     private var isLoaded = false
+    // Bộ nhớ đệm cho thông tin người dùng hiện tại
     private var currentUserCache: User? = null
 
-
-    init {
-        // Do not auto-load here, use loadDataIfNeeded from HomeScreen
-    }
-
+    // Hàm chuyển đổi timestamp thành chuỗi thời gian tương đối (VD: "Vừa xong", "1 giờ trước")
     private fun getTimeAgo(timestamp: Long): String {
         val currentTime = System.currentTimeMillis()
         val diffInSeconds = (currentTime - timestamp) / 1000
@@ -60,25 +65,27 @@ class HomeViewModel(
         }
     }
 
+    // Hàm tải dữ liệu lần đầu nếu chưa tải
     fun loadDataIfNeeded() {
-        if (!isLoaded) {
-            viewModelScope.launch {
+        if (!isLoaded) { // Kiểm tra xem dữ liệu đã được tải chưa
+            viewModelScope.launch { // Chạy bất đồng bộ trong viewModelScope
                 try {
-                    _uiState.update { it.copy(isLoading = true) }
-                    val currentUserId = auth.currentUser?.uid ?: return@launch
-                    
-                    // Load current user if not cached
+                    _uiState.update { it.copy(isLoading = true) } // Cập nhật trạng thái đang tải
+                    val currentUserId = auth.currentUser?.uid ?: return@launch // Lấy ID người dùng hiện tại
+
+                    // Tải thông tin người dùng nếu chưa có trong bộ đệm
                     if (currentUserCache == null) {
                         currentUserCache = userRepository.getUser(currentUserId)
                     }
-                    
-                    // Load posts from current user and following users
+
+                    // Tải danh sách bài đăng từ người dùng hiện tại và người đang theo dõi
                     val posts = postRepository.getPosts()
-                    
-                    // Load friends (following users)
+
+                    // Tải danh sách bạn bè (người đang theo dõi)
                     val friends = userRepository.getFriends(currentUserId)
-                    
-                    _uiState.update { 
+
+                    // Cập nhật trạng thái giao diện với dữ liệu đã tải
+                    _uiState.update {
                         it.copy(
                             posts = posts,
                             currentUser = currentUserCache,
@@ -86,9 +93,10 @@ class HomeViewModel(
                             isLoading = false
                         )
                     }
-                    isLoaded = true
+                    isLoaded = true // Đánh dấu dữ liệu đã được tải
                 } catch (e: Exception) {
-                    _uiState.update { 
+                    // Xử lý lỗi khi tải dữ liệu
+                    _uiState.update {
                         it.copy(
                             error = e.message,
                             isLoading = false
@@ -99,37 +107,44 @@ class HomeViewModel(
         }
     }
 
+    // Hàm làm mới danh sách bài đăng
     fun refreshPosts() {
         viewModelScope.launch {
             try {
-                _isRefreshing.value = true
-                val currentUserId = auth.currentUser?.uid ?: return@launch
+                _isRefreshing.value = true // Cập nhật trạng thái đang làm mới
+                val currentUserId = auth.currentUser?.uid ?: return@launch // Lấy ID người dùng
 
+                // Tải lại danh sách bài đăng
                 val posts = postRepository.getPosts()
-                
-                _uiState.update { 
+
+                // Cập nhật trạng thái giao diện với danh sách bài đăng mới
+                _uiState.update {
                     it.copy(
                         posts = posts
                     )
                 }
             } catch (e: Exception) {
-                _uiState.update { 
+                // Xử lý lỗi khi làm mới
+                _uiState.update {
                     it.copy(
                         error = e.message
                     )
                 }
             } finally {
-                _isRefreshing.value = false
+                _isRefreshing.value = false // Kết thúc trạng thái làm mới
             }
         }
     }
 
+    // Hàm xử lý hành động thích/không thích bài đăng
     fun toggleLike(post: Post) {
         viewModelScope.launch {
             try {
                 val currentUserId = auth.currentUser?.uid
                 if (currentUserId != null) {
+                    // Gọi repository để cập nhật trạng thái thích
                     val updatedPost = postRepository.toggleLike(post.postId, currentUserId)
+                    // Cập nhật danh sách bài đăng với bài đăng đã được cập nhật
                     _uiState.update { currentState ->
                         currentState.copy(
                             posts = currentState.posts.map { if (it.postId == post.postId) updatedPost else it }
@@ -137,8 +152,8 @@ class HomeViewModel(
                     }
                 }
             } catch (e: Exception) {
-                // Handle error
+                // Xử lý lỗi (hiện chưa hiển thị lỗi ra giao diện)
             }
         }
     }
-} 
+}

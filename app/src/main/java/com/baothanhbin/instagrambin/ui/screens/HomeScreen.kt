@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,33 +41,38 @@ import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 
+// Composable chính cho màn hình Home
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel,
-    navController: NavController? = null,
+    viewModel: HomeViewModel, // ViewModel cung cấp dữ liệu
+    navController: NavController? = null, // NavController để điều hướng
 ) {
+    // Thu thập trạng thái giao diện và trạng thái làm mới từ ViewModel
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing)
+    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing) // Trạng thái cho SwipeRefresh
 
-    // Load data only once when the screen is first created
+    // Tự động tải dữ liệu khi màn hình được tạo lần đầu
     LaunchedEffect(Unit) {
         viewModel.loadDataIfNeeded()
     }
 
+    // Đồng bộ trạng thái làm mới với SwipeRefresh
     LaunchedEffect(isRefreshing) {
         if (!isRefreshing) {
             swipeRefreshState.isRefreshing = false
         }
     }
 
+    // Sử dụng Scaffold để tạo bố cục với thanh trên cùng
     Scaffold(
-        topBar = { TopBar(currentRoute = "home") }
+        topBar = { TopBar(currentRoute = "home") } // Thanh trên cùng của màn hình
     ) { innerPadding ->
+        // Hỗ trợ làm mới giao diện bằng cách kéo xuống
         SwipeRefresh(
             state = swipeRefreshState,
-            onRefresh = { viewModel.refreshPosts() },
+            onRefresh = { viewModel.refreshPosts() }, // Gọi hàm làm mới bài đăng
             indicator = { state, trigger ->
                 SwipeRefreshIndicator(
                     state = state,
@@ -76,8 +83,8 @@ fun HomeScreen(
                 )
             }
         ) {
+            // Nếu đang tải dữ liệu, hiển thị giao diện skeleton
             if (uiState.isLoading) {
-                // Skeleton cho posts
                 LazyColumn(
                     contentPadding = PaddingValues(
                         top = innerPadding.calculateTopPadding(),
@@ -87,9 +94,10 @@ fun HomeScreen(
                         .fillMaxSize()
                         .background(Color(0xFFFFFFFF))
                 ) {
-                    items(3) { PostSkeleton() }
+                    items(3) { PostSkeleton() } // Hiển thị 3 skeleton placeholder
                 }
             } else {
+                // Hiển thị danh sách bài đăng và stories
                 LazyColumn(
                     contentPadding = PaddingValues(
                         top = innerPadding.calculateTopPadding(),
@@ -99,7 +107,7 @@ fun HomeScreen(
                         .fillMaxSize()
                         .background(Color(0xFFFFFFFF))
                 ) {
-                    // Stories là item đầu tiên
+                    // Hiển thị stories (tin của bạn và bạn bè)
                     item {
                         LazyRow(
                             modifier = Modifier
@@ -108,6 +116,7 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            // Hiển thị story của người dùng hiện tại
                             uiState.currentUser?.let { user ->
                                 item {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -141,6 +150,7 @@ fun HomeScreen(
                                     }
                                 }
                             }
+                            // Hiển thị stories của bạn bè
                             items(uiState.friends) { friend ->
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(
@@ -174,12 +184,12 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // Các post
+                    // Hiển thị danh sách bài đăng
                     items(uiState.posts) { post ->
                         PostItem(
                             post = post,
                             navController = navController,
-                            onLikeClick = { viewModel.toggleLike(post) }
+                            onLikeClick = { viewModel.toggleLike(post) } // Xử lý hành động thích bài
                         )
                     }
                 }
@@ -188,29 +198,33 @@ fun HomeScreen(
     }
 }
 
+// Composable hiển thị chi tiết một bài đăng
 @Composable
 fun PostItem(
-    post: Post,
-    navController: NavController?,
-    onLikeClick: (Post) -> Unit,
+    post: Post, // Dữ liệu bài đăng
+    navController: NavController?, // NavController để điều hướng
+    onLikeClick: (Post) -> Unit, // Callback khi nhấn nút thích
 ) {
+    // Kiểm tra xem người dùng hiện tại có thích bài đăng này không
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     val liked = currentUserId != null && post.likes.containsKey(currentUserId)
+    // Trạng thái để hiển thị hiệu ứng trái tim khi nhấn đúp
     var showHeart by remember { mutableStateOf(false) }
 
+    // Bố cục chính của bài đăng
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp)
             .background(Color.White)
     ) {
-        // Đường thẳng ngang ngăn cách giữa các post
+        // Đường phân cách giữa các bài đăng
         Divider(
             color = Color.Gray.copy(alpha = 0.5f),
             thickness = 1.dp,
             modifier = Modifier.padding(vertical = 8.dp)
         )
-        //Post
+        // Phần tiêu đề bài đăng (avatar, tên người dùng, thời gian)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -248,14 +262,19 @@ fun PostItem(
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
+            // Tên người dùng, có thể nhấn để điều hướng đến hồ sơ
             Text(
                 text = post.user.username,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { 
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = rememberRipple() // Hiệu ứng ripple khi nhấn
+                ) {
                     navController?.navigate("profile/${post.user.uid}")
                 }
             )
             Spacer(modifier = Modifier.width(12.dp))
+            // Thời gian đăng bài
             Text(
                 text = post.timeAgo,
                 style = MaterialTheme.typography.bodySmall,
@@ -263,7 +282,7 @@ fun PostItem(
             )
         }
 
-        // Post image
+        // Phần ảnh bài đăng
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -271,9 +290,11 @@ fun PostItem(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = {
+                            // Nhấn một lần để xem chi tiết bài đăng
                             navController?.navigate("post_detail/${post.postId}")
                         },
                         onDoubleTap = {
+                            // Nhấn đúp để hiển thị hiệu ứng trái tim
                             showHeart = true
                         }
                     )
@@ -286,7 +307,7 @@ fun PostItem(
                 contentScale = ContentScale.Crop
             )
 
-            // Heart animation
+            // Hiệu ứng trái tim khi nhấn đúp
             if (showHeart) {
                 Icon(
                     painter = painterResource(id = R.drawable.heart),
@@ -298,6 +319,7 @@ fun PostItem(
                 )
             }
 
+            // Tự động ẩn hiệu ứng trái tim sau 1 giây
             LaunchedEffect(showHeart) {
                 if (showHeart) {
                     delay(1000)
@@ -306,7 +328,7 @@ fun PostItem(
             }
         }
 
-        // Post actions and info
+        // Các nút tương tác (thích, bình luận, chia sẻ)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -317,6 +339,7 @@ fun PostItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Nút thích
                 Icon(
                     painter = painterResource(id = if (liked) R.drawable.heart else R.drawable.heart_outline),
                     contentDescription = "Like",
@@ -325,6 +348,7 @@ fun PostItem(
                         .clickable { onLikeClick(post) },
                     tint = if (liked) Color.Red else Color.Black
                 )
+                // Nút bình luận
                 Icon(
                     painter = painterResource(id = R.drawable.ic_comment),
                     contentDescription = "Comment",
@@ -333,6 +357,7 @@ fun PostItem(
                         .clickable { navController?.navigate("post_detail/${post.postId}") },
                     tint = Color.Black
                 )
+                // Nút chia sẻ (chưa triển khai logic)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_send),
                     contentDescription = "Share",
@@ -344,7 +369,7 @@ fun PostItem(
             }
         }
 
-        // Likes and comments count
+        // Số lượt thích và bình luận
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -356,6 +381,7 @@ fun PostItem(
                 fontWeight = FontWeight.Bold
             )
             if (post.commentsCount > 0) {
+                // Liên kết để xem tất cả bình luận
                 Text(
                     text = "Xem tất cả ${post.commentsCount} bình luận",
                     style = MaterialTheme.typography.bodyMedium,
@@ -367,7 +393,7 @@ fun PostItem(
             }
         }
 
-        // Post caption
+        // Chú thích bài đăng
         Column(
             modifier = Modifier.padding(horizontal = 12.dp)
         ) {
@@ -379,6 +405,7 @@ fun PostItem(
     }
 }
 
+// Composable hiển thị skeleton placeholder khi dữ liệu đang tải
 @Composable
 fun PostSkeleton() {
     Column(
@@ -387,17 +414,20 @@ fun PostSkeleton() {
             .padding(bottom = 16.dp)
             .background(Color.White)
     ) {
+        // Đường phân cách
         Divider(
             color = Color.Gray.copy(alpha = 0.5f),
             thickness = 1.dp,
             modifier = Modifier.padding(vertical = 8.dp)
         )
+        // Phần tiêu đề placeholder
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 5.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Placeholder cho avatar
             Box(
                 modifier = Modifier
                     .size(33.dp)
@@ -405,6 +435,7 @@ fun PostSkeleton() {
                     .background(Color(0xFFE3E2E2))
             )
             Spacer(modifier = Modifier.width(8.dp))
+            // Placeholder cho tên người dùng
             Box(
                 modifier = Modifier
                     .width(80.dp)
@@ -412,6 +443,7 @@ fun PostSkeleton() {
                     .background(Color(0xFFE3E2E2), shape = MaterialTheme.shapes.small)
             )
         }
+        // Placeholder cho ảnh bài đăng
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -419,6 +451,7 @@ fun PostSkeleton() {
                 .background(Color(0xFFE3E2E2))
         )
         Spacer(modifier = Modifier.height(8.dp))
+        // Placeholder cho số lượt thích
         Box(
             modifier = Modifier
                 .width(120.dp)
@@ -426,6 +459,7 @@ fun PostSkeleton() {
                 .background(Color(0xFFE3E2E2), shape = MaterialTheme.shapes.small)
         )
         Spacer(modifier = Modifier.height(4.dp))
+        // Placeholder cho chú thích
         Box(
             modifier = Modifier
                 .width(200.dp)
@@ -434,4 +468,3 @@ fun PostSkeleton() {
         )
     }
 }
-
