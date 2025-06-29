@@ -20,7 +20,9 @@ import kotlinx.coroutines.tasks.await
 data class CommentUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val comments: List<Comment> = emptyList()
+    val comments: List<Comment> = emptyList(),
+    val replyingToCommentId: String? = null,
+    val replyingToUsername: String? = null
 )
 
 class CommentViewModel : ViewModel() {
@@ -39,29 +41,33 @@ class CommentViewModel : ViewModel() {
                     .addValueEventListener(object : ValueEventListener {
                         override fun onDataChange(snapshot: DataSnapshot) {
                             val comments = mutableListOf<Comment>()
+                            val userLoadTasks = mutableListOf<com.google.android.gms.tasks.Task<Comment>>()
+                            val commentList = mutableListOf<Comment>()
                             for (commentSnapshot in snapshot.children) {
                                 try {
                                     val comment = commentSnapshot.getValue(Comment::class.java)
                                     if (comment != null) {
-                                        // Load user data cho mỗi comment
-                                        database.getReference("users")
+                                        // Load user data cho mỗi comment (dùng task để chờ tất cả user load xong)
+                                        val userTask = database.getReference("users")
                                             .child(comment.userId)
                                             .get()
-                                            .addOnSuccessListener { userSnapshot ->
-                                                val user = userSnapshot.getValue(User::class.java)
-                                                if (user != null) {
-                                                    val commentWithUser = comment.copy(user = user)
-                                                    comments.add(commentWithUser)
-                                                    _uiState.value = _uiState.value.copy(
-                                                        comments = comments.sortedByDescending { it.timestamp }
-                                                    )
-                                                }
+                                            .continueWith { userSnapshotTask ->
+                                                val user = userSnapshotTask.result?.getValue(User::class.java)
+                                                comment.copy(user = user ?: User())
                                             }
+                                        userLoadTasks.add(userTask)
                                     }
                                 } catch (e: Exception) {
-                                    Log.e("CommentViewModel", "Error parsing comment: ${e.message}", e)
+                                    Log.e("CommentViewModel", "Error parsing comment: ", e)
                                 }
                             }
+                            // Khi tất cả user load xong, cập nhật UI state 1 lần duy nhất
+                            com.google.android.gms.tasks.Tasks.whenAllSuccess<Comment>(userLoadTasks)
+                                .addOnSuccessListener { loadedComments ->
+                                    _uiState.value = _uiState.value.copy(
+                                        comments = (loadedComments as List<Comment>).sortedByDescending { it.timestamp }
+                                    )
+                                }
                         }
 
                         override fun onCancelled(error: DatabaseError) {
@@ -99,7 +105,8 @@ class CommentViewModel : ViewModel() {
                     postId = postId,
                     userId = currentUser.uid,
                     content = content,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = System.currentTimeMillis(),
+                    replyToCommentId = _uiState.value.replyingToCommentId
                 )
 
                 // Lấy user data
@@ -121,7 +128,9 @@ class CommentViewModel : ViewModel() {
 
                 // Thêm comment vào database
                 val commentRef = commentsRef.child(postId).child("comments").push()
-                commentRef.setValue(comment)
+                val commentId = commentRef.key ?: ""
+                val commentWithId = comment.copy(commentId = commentId)
+                commentRef.setValue(commentWithId)
                     .addOnSuccessListener {
                         // Update comment count
                         commentsRef.child(postId).child("commentsCount")
@@ -132,6 +141,7 @@ class CommentViewModel : ViewModel() {
                                     .setValue(currentCount + 1)
                                     .addOnSuccessListener {
                                         _uiState.value = _uiState.value.copy(isLoading = false)
+                                        clearReply()
                                     }
                             }
                     }
@@ -148,5 +158,13 @@ class CommentViewModel : ViewModel() {
                 )
             }
         }
+    }
+
+    fun setReplyTo(commentId: String, username: String) {
+        _uiState.value = _uiState.value.copy(replyingToCommentId = commentId, replyingToUsername = username)
+    }
+
+    fun clearReply() {
+        _uiState.value = _uiState.value.copy(replyingToCommentId = null, replyingToUsername = null)
     }
 } 

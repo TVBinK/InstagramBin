@@ -264,7 +264,7 @@ fun PostItem(
             Spacer(modifier = Modifier.width(8.dp))
             // Tên người dùng, có thể nhấn để điều hướng đến hồ sơ
             Text(
-                text = post.user.username,
+                text = post.user.fullName,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -398,7 +398,7 @@ fun PostItem(
             modifier = Modifier.padding(horizontal = 12.dp)
         ) {
             Text(
-                text = "${post.user.username} ${post.caption}",
+                text = "${post.user.fullName} ${post.caption}",
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }

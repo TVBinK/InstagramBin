@@ -105,48 +105,88 @@ fun PostDetailScreen(
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center)
                 )
-            } else {
-                val post = postState.currentPost
-                if (post != null) {
-                    Column(
-                        modifier = Modifier.fillMaxSize()
+            } else if (postState.currentPost != null) {
+                val post = postState.currentPost!!
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Content area with LazyColumn
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
-                        // Content area with LazyColumn
-                        LazyColumn(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentPadding = PaddingValues(bottom = 80.dp)
-                        ) {
-                            item {
-                                PostDetailContent(
-                                    post = post,
-                                    onLikeClick = { postViewModel.toggleLike(post) },
-                                    onCommentClick = { /* Handle comment */ },
-                                    onShareClick = { /* Handle share */ }
-                                )
-                            }
-
-                            // Hiển thị số lượng bình luận
-                            item {
-                                Text(
-                                    text = "${uiState.comments.size} bình luận",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                            }
-
-                            items(uiState.comments) { comment ->
-                                CommentItem(comment = comment)
-                            }
+                        item {
+                            PostDetailContent(
+                                post = post,
+                                onLikeClick = { postViewModel.toggleLike(post) },
+                                onCommentClick = { /* Handle comment */ },
+                                onShareClick = { /* Handle share */ }
+                            )
                         }
 
-                        // Comment input section
+                        // Hiển thị số lượng bình luận
+                        item {
+                            Text(
+                                text = "${uiState.comments.size} bình luận",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        // Lọc unique comments theo commentId
+                        val uniqueComments = uiState.comments.distinctBy { it.commentId }
+                        val parentComments = uniqueComments.filter { it.replyToCommentId == null }
+                        items(parentComments) { parent ->
+                            CommentItem(
+                                comment = parent,
+                                onReply = { replyComment ->
+                                    viewModel.setReplyTo(replyComment.commentId, replyComment.user.username)
+                                },
+                                isReply = false,
+                                repliedUsername = null
+                            )
+                            // Hiển thị các reply của comment cha này
+                            val replies = uniqueComments.filter { it.replyToCommentId == parent.commentId }
+                            replies.forEach { reply ->
+                                CommentItem(
+                                    comment = reply,
+                                    onReply = { replyComment ->
+                                        viewModel.setReplyTo(replyComment.commentId, replyComment.user.username)
+                                    },
+                                    isReply = true,
+                                    repliedUsername = uniqueComments.find { it.commentId == reply.replyToCommentId }?.user?.username
+                                )
+                            }
+                        }
+                    }
+
+                    // Comment input section
+                    Column(
+                        modifier = Modifier
+                            .padding(bottom = 70.dp, start = 16.dp, end = 16.dp)
+                            .fillMaxWidth()
+                    ) {
+                        if (uiState.replyingToCommentId != null && uiState.replyingToUsername != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Đang trả lời @${uiState.replyingToUsername}",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { viewModel.clearReply() }) {
+                                    Text("Hủy", color = Color.Red)
+                                }
+                            }
+                        }
                         Row(
                             modifier = Modifier
-                                .padding(bottom = 70.dp, start = 16.dp, end = 16.dp)
-                                .fillMaxWidth()
                                 .background(Color(0xFFF5F5F5), RoundedCornerShape(24.dp))
                                 .border(
                                     width = 1.dp,
@@ -193,17 +233,13 @@ fun PostDetailScreen(
                             TextField(
                                 value = commentText,
                                 onValueChange = { commentText = it },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(
-                                        color = Color.Transparent,
-                                        shape = RoundedCornerShape(24.dp)
-                                    ),
+                                modifier = Modifier.weight(1f).background(
+                                    color = Color.Transparent,
+                                    shape = RoundedCornerShape(24.dp)
+                                ),
                                 placeholder = { Text("Viết bình luận...") },
                                 maxLines = 3,
-                                keyboardOptions = KeyboardOptions(
-                                    imeAction = ImeAction.Send
-                                ),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                                 keyboardActions = KeyboardActions(
                                     onSend = {
                                         if (commentText.isNotBlank()) {
@@ -240,12 +276,6 @@ fun PostDetailScreen(
                             }
                         }
                     }
-                } else {
-                    Text(
-                        text = "Không tìm thấy bài viết",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
                 }
             }
         }
@@ -285,7 +315,7 @@ fun PostDetailContent(
                     contentScale = ContentScale.Crop
                 )
                 Text(
-                    text = post.user.username,
+                    text = post.user.fullName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -344,11 +374,16 @@ fun PostDetailContent(
 }
 
 @Composable
-fun CommentItem(comment: Comment) {
+fun CommentItem(
+    comment: Comment,
+    onReply: (Comment) -> Unit = {},
+    isReply: Boolean = false,
+    repliedUsername: String? = null
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(start = if (isReply) 40.dp else 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -368,7 +403,7 @@ fun CommentItem(comment: Comment) {
                     contentScale = ContentScale.Crop
                 )
                 Text(
-                    text = comment.user.username,
+                    text = comment.user.fullName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -381,9 +416,24 @@ fun CommentItem(comment: Comment) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = comment.content,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 40.dp)
+            style = MaterialTheme.typography.bodyMedium
         )
+        if (isReply && repliedUsername != null) {
+            Text(
+                text = "Trả lời @$repliedUsername",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 0.dp, top = 2.dp)
+            )
+        }
+        // Nút trả lời
+        TextButton(
+            onClick = { onReply(comment) },
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.align(Alignment.Start)
+        ) {
+            Text("Trả lời", fontSize = 13.sp)
+        }
     }
 }
 

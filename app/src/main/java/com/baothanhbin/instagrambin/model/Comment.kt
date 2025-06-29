@@ -6,5 +6,6 @@ data class Comment(
     val userId: String = "",
     val content: String = "",
     val timestamp: Long = 0,
-    var user: User = User()
+    var user: User = User(),
+    val replyToCommentId: String? = null
 ) 
