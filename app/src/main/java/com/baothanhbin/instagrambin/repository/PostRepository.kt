@@ -1,14 +1,17 @@
 package com.baothanhbin.instagrambin.repository
 
+import android.app.Application
 import com.baothanhbin.instagrambin.model.Post
 import com.baothanhbin.instagrambin.model.User
+import com.baothanhbin.instagrambin.service.NotificationService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.tasks.await
 
-class PostRepository {
+class PostRepository(private val application: Application) {
     private val auth = FirebaseAuth.getInstance()
     private val database = FirebaseDatabase.getInstance()
+    private val notificationService = NotificationService(application)
 
     suspend fun getPosts(): List<Post> {
         val currentUser = auth.currentUser ?: throw Exception("User not logged in")
@@ -64,6 +67,11 @@ class PostRepository {
         
         postRef.child("likes").setValue(updatedLikes).await()
         postRef.child("likesCount").setValue(newLikesCount).await()
+        
+        // Gửi notification nếu like (không gửi khi unlike)
+        if (!isLiked) {
+            notificationService.sendLikeNotification(post, userId)
+        }
         
         // Fetch user and recalculate timeAgo
         val postUserSnapshot = database.getReference("users")

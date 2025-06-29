@@ -1,10 +1,13 @@
 package com.baothanhbin.instagrambin.viewmodel
 
+import android.app.Application
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baothanhbin.instagrambin.model.Comment
+import com.baothanhbin.instagrambin.model.Post
 import com.baothanhbin.instagrambin.model.User
+import com.baothanhbin.instagrambin.service.NotificationService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -25,12 +28,13 @@ data class CommentUiState(
     val replyingToUsername: String? = null
 )
 
-class CommentViewModel : ViewModel() {
+class CommentViewModel(private val application: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(CommentUiState())
     val uiState: StateFlow<CommentUiState> = _uiState.asStateFlow()
 
     private val database = FirebaseDatabase.getInstance()
     private val commentsRef = database.getReference("posts")
+    private val notificationService = NotificationService(application)
 
     fun loadComments(postId: String) {
         viewModelScope.launch {
@@ -100,6 +104,10 @@ class CommentViewModel : ViewModel() {
                     return@launch
                 }
 
+                // Lấy thông tin bài viết để gửi notification
+                val postSnapshot = database.getReference("posts").child(postId).get().await()
+                val post = postSnapshot.getValue(Post::class.java)
+
                 // Tạo comment object
                 val comment = Comment(
                     postId = postId,
@@ -140,6 +148,28 @@ class CommentViewModel : ViewModel() {
                                 commentsRef.child(postId).child("commentsCount")
                                     .setValue(currentCount + 1)
                                     .addOnSuccessListener {
+                                        // Gửi notification sau khi comment thành công
+                                        post?.let { postData ->
+                                            viewModelScope.launch {
+                                                if (comment.replyToCommentId != null) {
+                                                    // Nếu là reply, gửi notification cho chủ comment gốc
+                                                    val originalCommentSnapshot = database.getReference("posts")
+                                                        .child(postId)
+                                                        .child("comments")
+                                                        .child(comment.replyToCommentId)
+                                                        .get()
+                                                        .await()
+                                                    val originalComment = originalCommentSnapshot.getValue(Comment::class.java)
+                                                    originalComment?.let { original ->
+                                                        notificationService.sendReplyNotification(original, commentWithId)
+                                                    }
+                                                } else {
+                                                    // Nếu là comment mới, gửi notification cho chủ bài viết
+                                                    notificationService.sendCommentNotification(postData, commentWithId)
+                                                }
+                                            }
+                                        }
+                                        
                                         _uiState.value = _uiState.value.copy(isLoading = false)
                                         clearReply()
                                     }

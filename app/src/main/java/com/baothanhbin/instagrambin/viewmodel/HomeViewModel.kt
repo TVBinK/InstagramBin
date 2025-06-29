@@ -41,7 +41,7 @@ class HomeViewModel(
     // Instance của FirebaseAuth để quản lý xác thực người dùng
     private val auth = FirebaseAuth.getInstance()
     // Repository để lấy dữ liệu bài đăng
-    private val postRepository = PostRepository()
+    private val postRepository = PostRepository(application)
     // Repository để lấy dữ liệu người dùng
     private val userRepository = UserRepository()
 

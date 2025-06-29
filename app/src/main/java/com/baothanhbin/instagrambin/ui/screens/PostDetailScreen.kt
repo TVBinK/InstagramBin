@@ -45,13 +45,17 @@ import com.baothanhbin.instagrambin.viewmodel.CommentViewModel
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import com.baothanhbin.instagrambin.model.Comment
 import com.google.firebase.auth.FirebaseAuth
+import android.app.Application
+import com.baothanhbin.instagrambin.viewmodel.CommentViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostDetailScreen(
     navController: NavController,
     postId: String,
-    viewModel: CommentViewModel = viewModel()
+    viewModel: CommentViewModel = viewModel(
+        factory = CommentViewModelFactory(LocalContext.current.applicationContext as Application)
+    )
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -120,6 +124,7 @@ fun PostDetailScreen(
                         item {
                             PostDetailContent(
                                 post = post,
+                                navController = navController,
                                 onLikeClick = { postViewModel.toggleLike(post) },
                                 onCommentClick = { /* Handle comment */ },
                                 onShareClick = { /* Handle share */ }
@@ -138,28 +143,17 @@ fun PostDetailScreen(
 
                         // Lọc unique comments theo commentId
                         val uniqueComments = uiState.comments.distinctBy { it.commentId }
-                        val parentComments = uniqueComments.filter { it.replyToCommentId == null }
-                        items(parentComments) { parent ->
-                            CommentItem(
-                                comment = parent,
+                        val commentMap = uniqueComments.associateBy { it.commentId }
+                        item {
+                            RecursiveCommentList(
+                                comments = uniqueComments,
+                                commentMap = commentMap,
+                                navController = navController,
+                                parentId = null,
                                 onReply = { replyComment ->
                                     viewModel.setReplyTo(replyComment.commentId, replyComment.user.username)
-                                },
-                                isReply = false,
-                                repliedUsername = null
+                                }
                             )
-                            // Hiển thị các reply của comment cha này
-                            val replies = uniqueComments.filter { it.replyToCommentId == parent.commentId }
-                            replies.forEach { reply ->
-                                CommentItem(
-                                    comment = reply,
-                                    onReply = { replyComment ->
-                                        viewModel.setReplyTo(replyComment.commentId, replyComment.user.username)
-                                    },
-                                    isReply = true,
-                                    repliedUsername = uniqueComments.find { it.commentId == reply.replyToCommentId }?.user?.username
-                                )
-                            }
                         }
                     }
 
@@ -285,6 +279,7 @@ fun PostDetailScreen(
 @Composable
 fun PostDetailContent(
     post: Post,
+    navController: NavController,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit
@@ -317,7 +312,15 @@ fun PostDetailContent(
                 Text(
                     text = post.user.fullName,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable {
+                        if (post.userId == currentUserId) {
+                            navController.navigate("profile")
+                        } else {
+                            navController.navigate("user_profile/${post.userId}")
+                        }
+                    },
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
             Text(
@@ -376,63 +379,127 @@ fun PostDetailContent(
 @Composable
 fun CommentItem(
     comment: Comment,
+    navController: NavController,
     onReply: (Comment) -> Unit = {},
-    isReply: Boolean = false,
-    repliedUsername: String? = null
+    depth: Int = 0,
+    repliedUsername: String? = null,
+    timestampText: String = "",
 ) {
-    Column(
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    val startPadding = 16.dp + (depth.dp * 14)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = if (isReply) 40.dp else 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
+            .padding(start = startPadding, end = 16.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AsyncImage(
-                    model = comment.user.profileImageUrl,
-                    contentDescription = "Profile",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
+        AsyncImage(
+            model = comment.user.profileImageUrl,
+            contentDescription = "Profile",
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = comment.user.fullName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable {
+                            if (comment.userId == currentUserId) {
+                                navController.navigate("profile")
+                            } else {
+                                navController.navigate("user_profile/${comment.userId}")
+                            }
+                        }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = timestampText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
                 )
             }
             Text(
-                text = formatTimestamp(comment.timestamp),
-                style = MaterialTheme.typography.bodySmall
+                text = comment.content,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.Start)
             )
+            if (depth > 0 && repliedUsername != null) {
+                Text(
+                    text = "Trả lời @$repliedUsername",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    modifier = Modifier.align(Alignment.Start)
+                )
+            }
+            TextButton(
+                onClick = { onReply(comment) },
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.align(Alignment.Start)
+            ) {
+                Text("Trả lời", fontSize = 13.sp, color = Color.Gray)
+            }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = comment.content,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        if (isReply && repliedUsername != null) {
-            Text(
-                text = "Trả lời @$repliedUsername",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                modifier = Modifier.padding(start = 0.dp, top = 2.dp)
-            )
-        }
-        // Nút trả lời
-        TextButton(
-            onClick = { onReply(comment) },
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.align(Alignment.Start)
+    }
+}
+
+@Composable
+fun RecursiveCommentList(
+    comments: List<Comment>,
+    commentMap: Map<String, Comment>,
+    navController: NavController,
+    parentId: String? = null,
+    depth: Int = 0,
+    onReply: (Comment) -> Unit
+) {
+    val children = comments.filter { it.replyToCommentId == parentId }
+    var showAllReplies by remember(parentId) { mutableStateOf(false) }
+    val childrenToShow = if (parentId != null && !showAllReplies && children.size > 1) children.take(1) else children
+    childrenToShow.forEach { comment ->
+        val repliedUsername = comment.replyToCommentId?.let { commentMap[it]?.user?.username }
+        val timestampText = formatTimestamp(comment.timestamp)
+        val replies = comments.filter { it.replyToCommentId == comment.commentId }
+        val hiddenRepliesCount = if (!showAllReplies && replies.size > 1) replies.size - 1 else 0
+        Column(
+            modifier = Modifier
+                .padding(
+                    top = if (depth == 0) 6.dp else 0.dp,
+                    bottom = if (depth == 0) 6.dp else 0.dp
+                )
         ) {
-            Text("Trả lời", fontSize = 13.sp)
+            CommentItem(
+                comment = comment,
+                navController = navController,
+                onReply = onReply,
+                depth = depth,
+                repliedUsername = repliedUsername,
+                timestampText = timestampText
+            )
+            // Đệ quy cho reply của comment này
+            RecursiveCommentList(
+                comments = comments,
+                commentMap = commentMap,
+                navController = navController,
+                parentId = comment.commentId,
+                depth = depth + 1,
+                onReply = onReply
+            )
+            if (parentId != null && hiddenRepliesCount > 0) {
+                Text(
+                    text = "Xem $hiddenRepliesCount câu trả lời khác",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = ((depth + 1) * 14).dp + 48.dp, top = 2.dp)
+                        .clickable { showAllReplies = true }
+                )
+            }
         }
     }
 }
@@ -498,6 +565,7 @@ private fun PostDetailContentPreview() {
         Surface {
             PostDetailContent(
                 post = mockPost,
+                navController = rememberNavController(),
                 onLikeClick = {},
                 onCommentClick = {},
                 onShareClick = {}
@@ -524,7 +592,10 @@ private fun CommentItemPreview() {
 
     InstagramUiComposeTheme {
         Surface {
-            CommentItem(comment = mockComment)
+            CommentItem(
+                comment = mockComment,
+                navController = rememberNavController()
+            )
         }
     }
 } 

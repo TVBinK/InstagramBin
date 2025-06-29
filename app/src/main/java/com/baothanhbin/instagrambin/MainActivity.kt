@@ -48,11 +48,18 @@ import com.baothanhbin.instagrambin.ui.screens.UserProfileScreen
 import com.baothanhbin.instagrambin.ui.screens.ChatListScreen
 import com.baothanhbin.instagrambin.ui.screens.FullImageScreen
 import com.baothanhbin.instagrambin.viewmodel.AuthViewModelFactory
+import com.baothanhbin.instagrambin.service.FCMService
+import com.baothanhbin.instagrambin.viewmodel.HomeViewModelFactory
+import android.content.Intent
 
 // Lớp chính của ứng dụng, kế thừa ComponentActivity để sử dụng Jetpack Compose
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Xử lý intent từ notification
+        handleNotificationIntent(intent.extras)
+        
         setContent {
             // Áp dụng theme tùy chỉnh của ứng dụng
             InstagramUiComposeTheme {
@@ -82,11 +89,25 @@ class MainActivity : ComponentActivity() {
                     // Thu thập trạng thái xác thực
                     val authState by authViewModel.authState.collectAsState()
                     // Khởi tạo HomeViewModel để quản lý dữ liệu màn hình chính
-                    val homeViewModel: HomeViewModel = viewModel()
+                    val homeViewModel: HomeViewModel = viewModel(
+                        factory = HomeViewModelFactory(LocalContext.current.applicationContext as Application)
+                    )
 
                     // Lắng nghe tuyến đường hiện tại để xác định màn hình đang hiển thị
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
+
+                    // Xử lý navigation từ notification
+                    LaunchedEffect(Unit) {
+                        handleNotificationNavigation(navController)
+                    }
+
+                    // Điều hướng sau xác thực thành công
+                    LaunchedEffect(authState) {
+                        if (authState is AuthState.Success) {
+                            handleNotificationNavigation(navController)
+                        }
+                    }
 
                     // Danh sách các tuyến đường không hiển thị thanh trên và thanh dưới
                     val hideBarsRoutes = listOf(
@@ -192,8 +213,8 @@ class MainActivity : ComponentActivity() {
                             composable("post_screen/{imageUris}") { backStackEntry ->
                                 val imageUrisString = backStackEntry.arguments?.getString("imageUris")
                                 // Chuyển đổi chuỗi URI thành danh sách Uri
-                                val imageUris = imageUrisString?.split(",")?.mapNotNull {
-                                    if (it.isNotBlank()) android.net.Uri.parse(Uri.decode(it)) else null
+                                val imageUris = imageUrisString?.split(",")?.mapNotNull { uriString ->
+                                    if (uriString.isNotBlank()) android.net.Uri.parse(Uri.decode(uriString)) else null
                                 } ?: emptyList()
                                 PostScreen(
                                     navController = navController,
@@ -230,6 +251,28 @@ class MainActivity : ComponentActivity() {
 
                             // Màn hình hồ sơ của người dùng khác
                             composable("profile/{userId}") { backStackEntry ->
+                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
+                                // Tải dữ liệu hồ sơ dựa trên userId
+                                LaunchedEffect(userId) {
+                                    userProfileViewModel.setUserId(userId)
+                                }
+                                com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
+                                    viewModel = userProfileViewModel,
+                                    navController = navController,
+                                    onBackClick = { navController.popBackStack() },
+                                    onFollowClick = { userProfileViewModel.toggleFollow() }, // Theo dõi
+                                    onUnfollowClick = { userProfileViewModel.toggleFollow() }, // Bỏ theo dõi
+                                    onMessageClick = {
+                                        navController.navigate("chat/$userId") // Mở màn hình chat
+                                    },
+                                    onFollowersClick = { navController.navigate("followers/$userId") }, // Xem danh sách người theo dõi
+                                    onFollowingClick = { navController.navigate("following/$userId") } // Xem danh sách đang theo dõi
+                                )
+                            }
+
+                            // Màn hình hồ sơ của người dùng khác (alias cho profile/{userId})
+                            composable("user_profile/{userId}") { backStackEntry ->
                                 val userId = backStackEntry.arguments?.getString("userId") ?: ""
                                 val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
                                 // Tải dữ liệu hồ sơ dựa trên userId
@@ -304,8 +347,6 @@ class MainActivity : ComponentActivity() {
                             // Màn hình danh sách tin nhắn
                             composable("message") {
                                 ChatListScreen(
-
-
                                     onBackClick = { navController.popBackStack() }, // Quay lại
                                     onChatClick = { user ->
                                         navController.navigate("chat/${user.uid}") // Mở màn hình chat với người dùng
@@ -357,13 +398,14 @@ class MainActivity : ComponentActivity() {
                                 val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
                                 val previousEntry = navController.previousBackStackEntry
                                 val previousRoute = previousEntry?.destination?.route
-                                val userId = previousEntry?.arguments?.getString("userId")
                                 FullImageScreen(
                                     imageUrl = Uri.decode(imageUrl),
                                     onBack = {
                                         // Điều hướng quay lại dựa trên tuyến đường trước đó
                                         if (previousRoute?.startsWith("chat/") == true) {
-                                            navController.popBackStack(previousRoute, false)
+                                            previousRoute?.let { route ->
+                                                navController.popBackStack(route, false)
+                                            } ?: navController.popBackStack()
                                         } else {
                                             navController.popBackStack()
                                         }
@@ -373,6 +415,50 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleNotificationIntent(intent?.extras)
+    }
+
+    /**
+     * Xử lý intent từ notification
+     */
+    private fun handleNotificationIntent(extras: Bundle?) {
+        extras?.let { bundle ->
+            val openPostDetail = bundle.getBoolean("openPostDetail", false)
+            if (openPostDetail) {
+                // Lưu thông tin để xử lý sau khi app khởi động
+                val postId = bundle.getString("postId") ?: ""
+                val commentId = bundle.getString("commentId") ?: ""
+                
+                // Có thể lưu vào SharedPreferences hoặc biến global để sử dụng sau
+                getSharedPreferences("notification_prefs", MODE_PRIVATE).edit().apply {
+                    putBoolean("open_post_detail", true)
+                    putString("post_id", postId)
+                    putString("comment_id", commentId)
+                    apply()
+                }
+            }
+        }
+    }
+
+    /**
+     * Xử lý navigation từ notification
+     */
+    private fun handleNotificationNavigation(navController: androidx.navigation.NavController) {
+        val prefs = getSharedPreferences("notification_prefs", MODE_PRIVATE)
+        val shouldOpenPostDetail = prefs.getBoolean("open_post_detail", false)
+        if (shouldOpenPostDetail) {
+            val postId = prefs.getString("post_id", "")
+            if (postId?.isNotEmpty() == true) {
+                navController.navigate("post_detail/$postId") {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+                prefs.edit().clear().apply()
             }
         }
     }
