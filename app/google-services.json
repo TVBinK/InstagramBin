@@ -1,36 +1,27 @@
 {
   "project_info": {
-    "project_number": "168915999375",
-    "project_id": "instagrambin",
-    "storage_bucket": "instagrambin.firebasestorage.app"
+    "project_number": "710559577566",
+    "firebase_url": "https://esp32-18e60-default-rtdb.firebaseio.com",
+    "project_id": "esp32-18e60",
+    "storage_bucket": "esp32-18e60.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:168915999375:android:d61f825be0663287a9eefa",
+        "mobilesdk_app_id": "1:710559577566:android:2478716f2d62394724594f",
         "android_client_info": {
           "package_name": "com.baothanhbin.instagrambin"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "168915999375-ibssv4e1oce3a1i24ug7n3bsnnic5bmv.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBDxbccwN5qLVCnXRVugjI-rFBYND4cNPA"
+          "current_key": "AIzaSyAIV69fv5sXtV8uF6X9g9PxW9Sgt-5fB3I"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "168915999375-ibssv4e1oce3a1i24ug7n3bsnnic5bmv.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

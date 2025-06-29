@@ -9,9 +9,9 @@
               <option name="connection">
                 <ConnectionSetting>
                   <option name="appId" value="com.baothanhbin.instagrambin" />
-                  <option name="mobileSdkAppId" value="1:168915999375:android:d61f825be0663287a9eefa" />
-                  <option name="projectId" value="instagrambin" />
-                  <option name="projectNumber" value="168915999375" />
+                  <option name="mobileSdkAppId" value="1:710559577566:android:2478716f2d62394724594f" />
+                  <option name="projectId" value="esp32-18e60" />
+                  <option name="projectNumber" value="710559577566" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

@@ -6,14 +6,18 @@ import androidx.lifecycle.viewModelScope
 import com.baothanhbin.instagrambin.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.baothanhbin.instagrambin.service.DataClearService
+import android.app.Application
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(application: Application) : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val database = FirebaseDatabase.getInstance().reference
+    private val dataClearService = DataClearService(application)
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Initial)
     val authState: StateFlow<AuthState> = _authState
@@ -84,6 +88,10 @@ class AuthViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 _authState.value = AuthState.Loading
+                
+                // Clear cache trước khi đăng nhập để đảm bảo data mới
+                dataClearService.forceRefreshAllData()
+                
                 val result = auth.signInWithEmailAndPassword(email, password).await()
                 result.user?.let { firebaseUser ->
                     // Get user data from Realtime Database
@@ -100,6 +108,18 @@ class AuthViewModel : ViewModel() {
                             fullName = firebaseUser.displayName ?: ""
                         ))
                     }
+
+                    // LẤY VÀ LƯU FCM TOKEN NGAY SAU KHI ĐĂNG NHẬP
+                    FirebaseMessaging.getInstance().token
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val token = task.result
+                                FirebaseDatabase.getInstance().getReference("users")
+                                    .child(firebaseUser.uid)
+                                    .child("fcmToken")
+                                    .setValue(token)
+                            }
+                        }
                 }
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Đăng nhập thất bại")
@@ -108,8 +128,27 @@ class AuthViewModel : ViewModel() {
     }
 
     fun signOut() {
-        auth.signOut()
-        _authState.value = AuthState.Initial
+        viewModelScope.launch {
+            try {
+                val currentUser = auth.currentUser
+                currentUser?.let { user ->
+                    // Remove FCM token
+                    database.child("users").child(user.uid).child("fcmToken").removeValue()
+                    
+                    // Clear all cache and data
+                    dataClearService.clearAllData()
+                }
+                
+                // Sign out from Firebase Auth
+                auth.signOut()
+                _authState.value = AuthState.Initial
+                
+            } catch (e: Exception) {
+                // Even if clearing fails, still sign out
+                auth.signOut()
+                _authState.value = AuthState.Initial
+            }
+        }
     }
 
     // Thêm hàm để refresh trạng thái đăng nhập

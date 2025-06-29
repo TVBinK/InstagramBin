@@ -50,11 +50,23 @@ class ChatListViewModel(application: Application) : AndroidViewModel(application
     private var messageListeners = mutableMapOf<String, ValueEventListener>()
 
     init {
+        // Clear cache khi khởi tạo để đảm bảo data mới
+        clearCache()
+        
         // Kiểm tra cache trước khi setup listener
         if (cachedChats.isNotEmpty() && System.currentTimeMillis() - lastUpdateTime < CACHE_DURATION) {
             _uiState.value = _uiState.value.copy(chats = cachedChats)
         }
         setupChatListener()
+    }
+
+    private fun clearCache() {
+        // Clear static cache
+        cachedChats = emptyList()
+        lastUpdateTime = 0
+        
+        // Clear message repository cache
+        messageRepository.clearUserCache()
     }
 
     private fun setupChatListener() {

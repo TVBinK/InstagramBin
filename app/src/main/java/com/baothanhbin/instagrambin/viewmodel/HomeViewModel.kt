@@ -156,4 +156,18 @@ class HomeViewModel(
             }
         }
     }
+
+    // Hàm clear cache và reset state
+    fun clearCache() {
+        isLoaded = false
+        currentUserCache = null
+        _uiState.value = HomeUiState()
+        _isRefreshing.value = false
+    }
+
+    // Hàm force refresh data
+    fun forceRefresh() {
+        clearCache()
+        loadDataIfNeeded()
+    }
 }

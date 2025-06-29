@@ -47,6 +47,7 @@ import com.baothanhbin.instagrambin.viewmodel.HomeViewModel
 import com.baothanhbin.instagrambin.ui.screens.UserProfileScreen
 import com.baothanhbin.instagrambin.ui.screens.ChatListScreen
 import com.baothanhbin.instagrambin.ui.screens.FullImageScreen
+import com.baothanhbin.instagrambin.viewmodel.AuthViewModelFactory
 
 // Lớp chính của ứng dụng, kế thừa ComponentActivity để sử dụng Jetpack Compose
 class MainActivity : ComponentActivity() {
@@ -75,7 +76,9 @@ class MainActivity : ComponentActivity() {
                     // Tạo NavController để quản lý điều hướng
                     val navController = rememberNavController()
                     // Khởi tạo AuthViewModel để quản lý trạng thái xác thực
-                    val authViewModel: AuthViewModel = viewModel()
+                    val authViewModel: AuthViewModel = viewModel(
+                        factory = AuthViewModelFactory(LocalContext.current.applicationContext as Application)
+                    )
                     // Thu thập trạng thái xác thực
                     val authState by authViewModel.authState.collectAsState()
                     // Khởi tạo HomeViewModel để quản lý dữ liệu màn hình chính
@@ -106,6 +109,10 @@ class MainActivity : ComponentActivity() {
                                     onLogout = {
                                         // Đăng xuất và điều hướng về màn hình đăng nhập
                                         authViewModel.signOut()
+                                        
+                                        // Clear cache của các ViewModel
+                                        homeViewModel.clearCache()
+                                        
                                         navController.navigate("login") {
                                             popUpTo("home") { inclusive = true } // Xóa màn hình home khỏi stack
                                         }
