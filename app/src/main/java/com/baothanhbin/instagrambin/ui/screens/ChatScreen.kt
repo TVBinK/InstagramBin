@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.baothanhbin.instagrambin.model.Message
 import com.baothanhbin.instagrambin.model.User
 import com.baothanhbin.instagrambin.viewmodel.MessageViewModel
+import com.baothanhbin.instagrambin.viewmodel.VideoCallViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.ui.tooling.preview.Preview
 import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
@@ -65,7 +66,8 @@ fun ChatScreen(
     user: User,
     onBackClick: () -> Unit,
     messageViewModel: MessageViewModel = viewModel(),
-    navController: NavController? = null
+    navController: NavController? = null,
+    videoCallViewModel: VideoCallViewModel
 ) {
     var messageText by remember { mutableStateOf("") }
     val messageState by messageViewModel.uiState.collectAsState()
@@ -73,6 +75,25 @@ fun ChatScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val listState = rememberLazyListState()
     var showEmojiPicker by remember { mutableStateOf(false) }
+    
+    // Video call states
+    val isInCall by videoCallViewModel.isInCall.collectAsState()
+    val currentCallUser by videoCallViewModel.currentCallUser.collectAsState()
+    val incomingCall by videoCallViewModel.incomingCall.collectAsState()
+    val permissionState by videoCallViewModel.permissionState.collectAsState()
+    val callState by videoCallViewModel.getWebRTCService().callState.collectAsState()
+
+    // Permission launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            videoCallViewModel.checkPermissions()
+            // Start the call after permissions are granted
+            videoCallViewModel.startCall(user)
+        }
+    }
 
     // Image picker
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -84,6 +105,9 @@ fun ChatScreen(
     }
 
     LaunchedEffect(user.uid) {
+        // Clean up any existing duplicates first
+        messageViewModel.cleanupDuplicates()
+        // Then load messages for this user
         messageViewModel.loadMessages(user.uid)
     }
 
@@ -110,195 +134,264 @@ fun ChatScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Avatar
-                        if (!user.profileImageUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = user.profileImageUrl,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .border(1.dp, Color.LightGray, CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(user.username, style = MaterialTheme.typography.titleMedium)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    // Refresh button
-                    IconButton(onClick = { messageViewModel.refreshMessages() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                }
-            )
+    // Main content
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Debug log
+        LaunchedEffect(isInCall, currentCallUser, incomingCall, callState) {
+            android.util.Log.d("ChatScreen", "VideoCall conditions: isInCall=$isInCall, currentCallUser=${currentCallUser?.username}, incomingCall=${incomingCall?.fromUser?.username}, callState=$callState")
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF7F7F7))
-                .padding(paddingValues)
-        ) {
-            // Messages list with swipe refresh
-            SwipeRefresh(
-                state = swipeRefreshState,
-                onRefresh = { messageViewModel.refreshMessages() },
-                modifier = Modifier.weight(1f)
-            ) {
-                LazyColumn(
-                    state = listState,
+        
+        // Hiển thị VideoCallScreen khi:
+        // 1. Đang trong cuộc gọi đã kết nối (CONNECTED)
+        // 2. Đang nhận cuộc gọi (RINGING) - chỉ callee
+        // 3. Đang gọi (CALLING) - chỉ caller
+        val shouldShowVideoCall = when {
+            // Đã kết nối
+            isInCall && currentCallUser != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.CONNECTED -> true
+            // Đang nhận cuộc gọi (callee)
+            incomingCall != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.RINGING -> true
+            // Đang gọi (caller)
+            currentCallUser != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.CALLING -> true
+            else -> false
+        }
+        
+        if (shouldShowVideoCall) {
+            val callUser = when {
+                isInCall -> currentCallUser
+                incomingCall != null -> incomingCall?.fromUser
+                else -> currentCallUser
+            }
+            if (callUser != null) {
+                android.util.Log.d("ChatScreen", "Showing VideoCallScreen for user: ${callUser.username}, callState: $callState")
+                VideoCallScreen(
+                    user = callUser,
+                    webRTCService = videoCallViewModel.getWebRTCService(),
+                    onEndCall = {
+                        android.util.Log.d("ChatScreen", "End call clicked - calling endCall()")
+                        videoCallViewModel.endCall()
+                    },
+                    onBackClick = {
+                        android.util.Log.d("ChatScreen", "Back clicked - calling endCall()")
+                        videoCallViewModel.endCall()
+                    },
+                    videoCallViewModel = videoCallViewModel
+                )
+            }
+        } else {
+            android.util.Log.d("ChatScreen", "Showing ChatScreen - VideoCall conditions not met")
+            // Show chat screen
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Avatar
+                                if (!user.profileImageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = user.profileImageUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .border(1.dp, Color.LightGray, CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text(user.username, style = MaterialTheme.typography.titleMedium)
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBackClick) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            // Video call button
+                            IconButton(
+                                onClick = {
+                                    if (permissionState.hasAllPermissions) {
+                                        videoCallViewModel.startCall(user)
+                                    } else {
+                                        // Request permissions first
+                                        permissionLauncher.launch(videoCallViewModel.getRequiredPermissions())
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Videocam,
+                                    contentDescription = "Video call",
+                                    tint = if (permissionState.hasAllPermissions) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+                            }
+                            
+                            // Refresh button
+                            IconButton(onClick = { messageViewModel.refreshMessages() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                            }
+                        }
+                    )
+                }
+            ) { paddingValues ->
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .background(Color(0xFFF7F7F7))
+                        .padding(paddingValues)
                 ) {
-                    // Loading more indicator at top
-                    if (messageState.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
-                        }
-                    }
+                    // Messages list with swipe refresh
+                    SwipeRefresh(
+                        state = swipeRefreshState,
+                        onRefresh = { messageViewModel.refreshMessages() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Loading more indicator at top
+                            if (messageState.isLoadingMore) {
+                                item {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+                                }
+                            }
 
-                    // Messages
-                    items(messageState.messages) { message ->
-                        MessageItem(
-                            message = message,
-                            isCurrentUser = message.senderId == currentUserId,
-                            showAvatar = message.senderId != currentUserId,
-                            avatarUrl = if (message.senderId != currentUserId) user.profileImageUrl else null,
-                            navController = navController
-                        )
-                    }
+                            // Messages
+                            items(messageState.messages) { message ->
+                                MessageItem(
+                                    message = message,
+                                    isCurrentUser = message.senderId == currentUserId,
+                                    showAvatar = message.senderId != currentUserId,
+                                    avatarUrl = if (message.senderId != currentUserId) user.profileImageUrl else null,
+                                    navController = navController
+                                )
+                            }
 
-                    // Loading indicator at bottom for initial load
-                    if (messageState.isLoading && messageState.messages.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) { CircularProgressIndicator() }
-                        }
-                    }
+                            // Loading indicator at bottom for initial load
+                            if (messageState.isLoading && messageState.messages.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) { CircularProgressIndicator() }
+                                }
+                            }
 
-                    // Error message
-                    if (messageState.error != null) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = messageState.error!!,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    TextButton(onClick = { messageViewModel.clearError() }) { Text("Dismiss") }
+                            // Error message
+                            if (messageState.error != null) {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = messageState.error!!,
+                                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            TextButton(onClick = { messageViewModel.clearError() }) { Text("Dismiss") }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // Emoji picker
-            if (showEmojiPicker) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp
-                ) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(8),
-                        modifier = Modifier.padding(8.dp)
-                    ) {
-                        items(emojis.size) { index ->
-                            Text(
-                                text = emojis[index],
-                                modifier = Modifier.padding(4.dp).clickable { messageText += emojis[index] },
-                                style = MaterialTheme.typography.titleLarge
-                            )
+                    // Emoji picker
+                    if (showEmojiPicker) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 2.dp
+                        ) {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(8),
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                items(emojis.size) { index ->
+                                    Text(
+                                        text = emojis[index],
+                                        modifier = Modifier.padding(4.dp).clickable { messageText += emojis[index] },
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            // Input bar
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .padding(bottom = 12.dp),
-                shape = RoundedCornerShape(32.dp),
-                color = Color.White,
-                shadowElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = { showEmojiPicker = !showEmojiPicker },
-                        modifier = Modifier.size(36.dp)
+                    // Input bar
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(32.dp),
+                        color = Color.White,
+                        shadowElevation = 6.dp
                     ) {
-                        Icon(Icons.Rounded.EmojiEmotions, contentDescription = "Emoji", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(
-                        onClick = { imagePickerLauncher.launch("image/*") },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(Icons.Rounded.Image, contentDescription = "Image", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    TextField(
-                        value = messageText,
-                        onValueChange = { messageText = it },
-                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                        placeholder = { Text("Type a message...") },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent
-                        ),
-                        maxLines = 5,
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    IconButton(
-                        onClick = {
-                            if (messageText.isNotBlank()) {
-                                messageViewModel.sendMessage(user.uid, messageText)
-                                messageText = ""
-                                keyboardController?.hide()
-                                showEmojiPicker = false
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { showEmojiPicker = !showEmojiPicker },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Rounded.EmojiEmotions, contentDescription = "Emoji", tint = MaterialTheme.colorScheme.primary)
                             }
-                        },
-                        modifier = Modifier.size(36.dp),
-                        enabled = messageText.isNotBlank()
-                    ) {
-                        Icon(
-                            Icons.Rounded.Send,
-                            contentDescription = "Send",
-                            tint = if (messageText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        )
+                            IconButton(
+                                onClick = { imagePickerLauncher.launch("image/*") },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Rounded.Image, contentDescription = "Image", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            TextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                                placeholder = { Text("Type a message...") },
+                                colors = TextFieldDefaults.colors(
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent
+                                ),
+                                maxLines = 5,
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    if (messageText.isNotBlank()) {
+                                        messageViewModel.sendMessage(user.uid, messageText)
+                                        messageText = ""
+                                        keyboardController?.hide()
+                                        showEmojiPicker = false
+                                    }
+                                },
+                                modifier = Modifier.size(36.dp),
+                                enabled = messageText.isNotBlank()
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Send,
+                                    contentDescription = "Send",
+                                    tint = if (messageText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+                            }
+                        }
                     }
                 }
             }

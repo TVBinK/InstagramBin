@@ -51,6 +51,7 @@ import com.baothanhbin.instagrambin.viewmodel.AuthViewModelFactory
 import com.baothanhbin.instagrambin.service.FCMService
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModelFactory
 import android.content.Intent
+import com.baothanhbin.instagrambin.viewmodel.VideoCallViewModel
 
 // Lớp chính của ứng dụng, kế thừa ComponentActivity để sử dụng Jetpack Compose
 class MainActivity : ComponentActivity() {
@@ -120,22 +121,38 @@ class MainActivity : ComponentActivity() {
                         "chat/{userId}"
                     )
 
+                    // Khởi tạo VideoCallViewModel ở cấp cao nhất
+                    val context = LocalContext.current
+                    val videoCallViewModel: VideoCallViewModel = viewModel { VideoCallViewModel(context) }
+
+                    // Observe incomingCall và điều hướng sang VideoCallScreen khi có cuộc gọi đến
+                    val incomingCall by videoCallViewModel.incomingCall.collectAsState()
+                    val callState by videoCallViewModel.getWebRTCService().callState.collectAsState()
+                    val shouldPopBack by videoCallViewModel.shouldPopBack.collectAsState()
+                    LaunchedEffect(incomingCall, callState, shouldPopBack) {
+                        if (incomingCall != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.RINGING) {
+                            android.util.Log.d("MainActivity", "Navigating to video call screen for incoming call from ${incomingCall!!.fromUserId}")
+                            navController.navigate("video_call_screen/${incomingCall!!.fromUserId}")
+                        }
+                        if (shouldPopBack) {
+                            android.util.Log.d("MainActivity", "shouldPopBack triggered - popping back stack")
+                            navController.popBackStack()
+                            videoCallViewModel.resetPopBackFlag()
+                            android.util.Log.d("MainActivity", "Popped back stack and reset shouldPopBack flag")
+                        }
+                    }
+
                     // Sử dụng Scaffold để tạo bố cục với thanh trên và thanh dưới
                     Scaffold(
                         topBar = {
-                            // Chỉ hiển thị TopBar nếu không phải tuyến đường trong hideBarsRoutes
-                            if (currentRoute !in hideBarsRoutes) {
+                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith("video_call_screen") == true)) {
                                 TopBar(
                                     currentRoute = currentRoute,
                                     onLogout = {
-                                        // Đăng xuất và điều hướng về màn hình đăng nhập
                                         authViewModel.signOut()
-                                        
-                                        // Clear cache của các ViewModel
                                         homeViewModel.clearCache()
-                                        
                                         navController.navigate("login") {
-                                            popUpTo("home") { inclusive = true } // Xóa màn hình home khỏi stack
+                                            popUpTo("home") { inclusive = true }
                                         }
                                     },
                                     navController = navController
@@ -143,8 +160,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         bottomBar = {
-                            // Chỉ hiển thị BottomBar nếu không phải tuyến đường trong hideBarsRoutes
-                            if (currentRoute !in hideBarsRoutes) {
+                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith("video_call_screen") == true)) {
                                 BottomBar(
                                     navController = navController,
                                     currentRoute = currentRoute
@@ -347,18 +363,17 @@ class MainActivity : ComponentActivity() {
                             // Màn hình danh sách tin nhắn
                             composable("message") {
                                 ChatListScreen(
-                                    onBackClick = { navController.popBackStack() }, // Quay lại
+                                    onBackClick = { navController.popBackStack() },
                                     onChatClick = { user ->
-                                        navController.navigate("chat/${user.uid}") // Mở màn hình chat với người dùng
+                                        navController.navigate("chat/${user.uid}")
                                     },
                                     onNewMessageClick = {
                                         navController.navigate("search") {
-                                            // Điều hướng đến màn hình tìm kiếm để chọn người nhắn tin
                                             popUpTo(navController.graph.startDestinationId) {
                                                 saveState = true
                                             }
-                                            launchSingleTop = true // Tránh tạo nhiều instance
-                                            restoreState = true // Khôi phục trạng thái
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
                                     }
                                 )
@@ -380,7 +395,8 @@ class MainActivity : ComponentActivity() {
                                     ChatScreen(
                                         user = userData,
                                         onBackClick = { navController.popBackStack() },
-                                        navController = navController
+                                        navController = navController,
+                                        videoCallViewModel = videoCallViewModel
                                     )
                                 } ?: run {
                                     // Nếu chưa tải xong, hiển thị vòng tròn tải
@@ -411,6 +427,23 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 )
+                            }
+
+                            // Màn hình video call
+                            composable("video_call_screen/{fromUserId}") { backStackEntry ->
+                                val fromUserId = backStackEntry.arguments?.getString("fromUserId") ?: ""
+                                // Lấy user từ ViewModel hoặc truyền qua navArgs
+                                val incomingCall = videoCallViewModel.incomingCall.value
+                                val callUser = incomingCall?.fromUser
+                                if (callUser != null) {
+                                    com.baothanhbin.instagrambin.ui.screens.VideoCallScreen(
+                                        user = callUser,
+                                        webRTCService = videoCallViewModel.getWebRTCService(),
+                                        onEndCall = { videoCallViewModel.endCall(); navController.popBackStack() },
+                                        onBackClick = { videoCallViewModel.endCall(); navController.popBackStack() },
+                                        videoCallViewModel = videoCallViewModel
+                                    )
+                                }
                             }
                         }
                     }

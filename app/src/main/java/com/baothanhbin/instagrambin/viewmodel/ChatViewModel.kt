@@ -30,6 +30,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private var messagesListener: ValueEventListener? = null
     private var currentChatId: String? = null
     private var isInitialLoad = true
+    
+    companion object {
+        private const val MAX_MESSAGES_IN_MEMORY = 200 // Limit messages in memory for performance
+    }
 
     fun loadMessages(userId: String) {
         viewModelScope.launch {
@@ -44,6 +48,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 
                 // Load initial messages with pagination
                 val initialMessages = messageRepository.getMessages(userId, MessageRepository.MESSAGES_PER_PAGE)
+                android.util.Log.d("MessageViewModel", "Initial load: loaded ${initialMessages.size} messages for user $userId")
                 
                 val lastTimestamp = if (initialMessages.isNotEmpty()) {
                     initialMessages.first().timestamp
@@ -94,15 +99,37 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 )
                 
                 if (moreMessages.isNotEmpty()) {
-                    val allMessages = moreMessages + currentState.messages
-                    val newLastTimestamp = moreMessages.first().timestamp
+                    // Get existing message IDs to prevent duplicates
+                    val existingMessageIds = currentState.messages.map { it.messageId }.toSet()
                     
-                    _uiState.value = currentState.copy(
-                        messages = allMessages,
-                        isLoadingMore = false,
-                        hasMoreMessages = moreMessages.size >= MessageRepository.MESSAGES_PER_PAGE,
-                        lastMessageTimestamp = newLastTimestamp
-                    )
+                    // Filter out duplicate messages
+                    val uniqueMoreMessages = moreMessages.filter { message ->
+                        !existingMessageIds.contains(message.messageId)
+                    }
+                    
+                    if (uniqueMoreMessages.isNotEmpty()) {
+                        var allMessages = uniqueMoreMessages + currentState.messages
+                        
+                        // Trim messages if too many in memory for performance
+                        if (allMessages.size > MAX_MESSAGES_IN_MEMORY) {
+                            allMessages = allMessages.takeLast(MAX_MESSAGES_IN_MEMORY)
+                            android.util.Log.d("MessageViewModel", "Trimmed pagination messages to ${MAX_MESSAGES_IN_MEMORY} for performance")
+                        }
+                        
+                        val newLastTimestamp = uniqueMoreMessages.minOf { it.timestamp }
+                        
+                        _uiState.value = currentState.copy(
+                            messages = allMessages,
+                            isLoadingMore = false,
+                            hasMoreMessages = moreMessages.size >= MessageRepository.MESSAGES_PER_PAGE,
+                            lastMessageTimestamp = newLastTimestamp
+                        )
+                    } else {
+                        _uiState.value = currentState.copy(
+                            isLoadingMore = false,
+                            hasMoreMessages = false
+                        )
+                    }
                 } else {
                     _uiState.value = currentState.copy(
                         isLoadingMore = false,
@@ -140,16 +167,41 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         val newMessages = messageRepository.getLatestMessages(userId, latestTimestamp)
                         
                         if (newMessages.isNotEmpty()) {
-                            val updatedMessages = currentState.messages + newMessages
-                            val newLastTimestamp = newMessages.last().timestamp
+                            android.util.Log.d("MessageViewModel", "Realtime: received ${newMessages.size} new messages")
                             
-                            _uiState.value = currentState.copy(
-                                messages = updatedMessages,
-                                lastMessageTimestamp = newLastTimestamp
-                            )
+                            // Get existing message IDs to prevent duplicates
+                            val existingMessageIds = currentState.messages.map { it.messageId }.toSet()
                             
-                            // Mark new messages as read
-                            messageRepository.markMessagesAsRead(userId)
+                            // Filter out duplicate messages
+                            val uniqueNewMessages = newMessages.filter { newMessage ->
+                                !existingMessageIds.contains(newMessage.messageId)
+                            }
+                            
+                            android.util.Log.d("MessageViewModel", "Realtime: ${uniqueNewMessages.size} unique messages after filtering duplicates")
+                            
+                            if (uniqueNewMessages.isNotEmpty()) {
+                                var updatedMessages = currentState.messages + uniqueNewMessages
+                                
+                                // Trim messages if too many in memory for performance
+                                if (updatedMessages.size > MAX_MESSAGES_IN_MEMORY) {
+                                    updatedMessages = updatedMessages.takeLast(MAX_MESSAGES_IN_MEMORY)
+                                    android.util.Log.d("MessageViewModel", "Trimmed messages to ${MAX_MESSAGES_IN_MEMORY} for performance")
+                                }
+                                
+                                val newLastTimestamp = uniqueNewMessages.maxOf { it.timestamp }
+                                
+                                android.util.Log.d("MessageViewModel", "Realtime: updating UI with ${updatedMessages.size} total messages")
+                                
+                                _uiState.value = currentState.copy(
+                                    messages = updatedMessages,
+                                    lastMessageTimestamp = newLastTimestamp
+                                )
+                                
+                                // Mark new messages as read
+                                messageRepository.markMessagesAsRead(userId)
+                            }
+                        } else {
+                            android.util.Log.d("MessageViewModel", "Realtime: no new messages received")
                         }
                     } catch (e: Exception) {
                         _uiState.value = _uiState.value.copy(
@@ -213,12 +265,51 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
+    
+    // Utility function to remove duplicates from message list
+    private fun removeDuplicateMessages(messages: List<Message>): List<Message> {
+        return messages.distinctBy { it.messageId }
+    }
+    
+    // Clean up any existing duplicate messages in current state
+    fun cleanupDuplicates() {
+        val currentState = _uiState.value
+        val cleanedMessages = removeDuplicateMessages(currentState.messages)
+        
+        if (cleanedMessages.size != currentState.messages.size) {
+            android.util.Log.d("MessageViewModel", "Cleaned up ${currentState.messages.size - cleanedMessages.size} duplicate messages")
+            _uiState.value = currentState.copy(messages = cleanedMessages)
+        }
+    }
 
     // Refresh messages
     fun refreshMessages() {
         currentChatId?.let { userId ->
+            android.util.Log.d("MessageViewModel", "Refreshing messages for user: $userId")
+            // Reset state completely before reload
+            _uiState.value = MessageUiState()
             isInitialLoad = true
+            // Remove current listener to prevent conflicts
+            removeMessagesListener()
+            // Clear repository cache to ensure fresh data
+            messageRepository.clearUserCache()
             loadMessages(userId)
+        }
+    }
+    
+    // Force cleanup duplicates and trim messages (can be called from UI)
+    fun forceCleanup() {
+        val currentState = _uiState.value
+        var cleanedMessages = removeDuplicateMessages(currentState.messages)
+        
+        // Also trim if too many messages
+        if (cleanedMessages.size > MAX_MESSAGES_IN_MEMORY) {
+            cleanedMessages = cleanedMessages.takeLast(MAX_MESSAGES_IN_MEMORY)
+        }
+        
+        if (cleanedMessages.size != currentState.messages.size) {
+            android.util.Log.d("MessageViewModel", "Force cleanup: ${currentState.messages.size} -> ${cleanedMessages.size} messages")
+            _uiState.value = currentState.copy(messages = cleanedMessages)
         }
     }
 

@@ -38,6 +38,29 @@ android {
     buildFeatures {
         compose = true
     }
+    
+    // Add configuration to resolve duplicate classes
+    configurations.all {
+        resolutionStrategy {
+            force("com.google.firebase:firebase-common:21.0.0")
+            force("com.google.firebase:firebase-firestore:24.10.2")
+        }
+    }
+    
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            pickFirsts += "META-INF/INDEX.LIST"
+            pickFirsts += "META-INF/io.netty.versions.properties"
+        }
+    }
+
+    // Đảm bảo Gradle biết tìm thư viện trong thư mục libs
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("libs")
+        }
+    }
 }
 
     dependencies {
@@ -60,6 +83,14 @@ android {
         implementation(libs.firebase.database.ktx)
         implementation("com.google.firebase:firebase-messaging-ktx:23.4.1")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+        
+        // WebRTC dependencies
+        // implementation("com.github.webrtc:webrtc-android:1.0.32006") // Temporarily disabled
+        // implementation("com.google.firebase:firebase-firestore-ktx:24.9.1") {
+        //     exclude(group = "com.google.firebase", module = "firebase-common")
+        // }
+        implementation(files("libs/libwebrtc.aar"))
+
         testImplementation("junit:junit:4.13.2")
         androidTestImplementation("androidx.test.ext:junit:1.1.5")
         androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
