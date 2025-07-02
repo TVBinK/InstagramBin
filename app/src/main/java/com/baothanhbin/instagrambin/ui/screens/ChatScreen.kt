@@ -76,6 +76,10 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var showEmojiPicker by remember { mutableStateOf(false) }
     
+    // Call history ViewModel
+    val callHistoryViewModel: com.baothanhbin.instagrambin.viewmodel.CallHistoryViewModel = viewModel()
+    val callHistories by callHistoryViewModel.callHistories.collectAsState()
+    
     // Video call states
     val isInCall by videoCallViewModel.isInCall.collectAsState()
     val currentCallUser by videoCallViewModel.currentCallUser.collectAsState()
@@ -109,16 +113,43 @@ fun ChatScreen(
         messageViewModel.cleanupDuplicates()
         // Then load messages for this user
         messageViewModel.loadMessages(user.uid)
+        // Load call history
+        callHistoryViewModel.loadCallHistory(user.uid)
+    }
+
+    // Combine messages and call histories and sort by timestamp
+    val combinedItems = remember(messageState.messages, callHistories) {
+        val items = mutableListOf<ChatItem>()
+        
+        // Add messages
+        messageState.messages.forEach { message ->
+            items.add(ChatItem.MessageItem(message))
+        }
+        
+        // Add call histories
+        callHistories.forEach { callHistory ->
+            items.add(ChatItem.CallItem(callHistory))
+        }
+        
+        // Sort by timestamp
+        items.sortedBy { 
+            when (it) {
+                is ChatItem.MessageItem -> it.message.timestamp
+                is ChatItem.CallItem -> it.callHistory.timestamp
+            }
+        }
     }
 
     // Track previous message count to detect new messages
-    var previousMessageCount by remember { mutableStateOf(0) }
+    var previousItemCount by remember { mutableStateOf(0) }
     
-    LaunchedEffect(messageState.messages.size) {
-        if (messageState.messages.size > previousMessageCount) {
-            // Only scroll if new messages were added
-            listState.animateScrollToItem(messageState.messages.lastIndex)
-            previousMessageCount = messageState.messages.size
+    LaunchedEffect(combinedItems.size) {
+        if (combinedItems.size > previousItemCount) {
+            // Only scroll if new items were added
+            if (combinedItems.isNotEmpty()) {
+                listState.animateScrollToItem(combinedItems.lastIndex)
+            }
+            previousItemCount = combinedItems.size
         }
     }
 
@@ -212,6 +243,8 @@ fun ChatScreen(
                                 onClick = {
                                     if (permissionState.hasAllPermissions) {
                                         videoCallViewModel.startCall(user)
+                                        // Save call start to history
+                                        callHistoryViewModel.saveCallStart(user.uid, "video")
                                     } else {
                                         // Request permissions first
                                         permissionLauncher.launch(videoCallViewModel.getRequiredPermissions())
@@ -242,7 +275,7 @@ fun ChatScreen(
                         .background(Color(0xFFF7F7F7))
                         .padding(paddingValues)
                 ) {
-                    // Messages list with swipe refresh
+                    // Messages and call history list with swipe refresh
                     SwipeRefresh(
                         state = swipeRefreshState,
                         onRefresh = { messageViewModel.refreshMessages() },
@@ -265,19 +298,38 @@ fun ChatScreen(
                                 }
                             }
 
-                            // Messages
-                            items(messageState.messages) { message ->
-                                MessageItem(
-                                    message = message,
-                                    isCurrentUser = message.senderId == currentUserId,
-                                    showAvatar = message.senderId != currentUserId,
-                                    avatarUrl = if (message.senderId != currentUserId) user.profileImageUrl else null,
-                                    navController = navController
-                                )
+                            // Combined messages and call history
+                            items(combinedItems) { item ->
+                                when (item) {
+                                    is ChatItem.MessageItem -> {
+                                        MessageItem(
+                                            message = item.message,
+                                            isCurrentUser = item.message.senderId == currentUserId,
+                                            showAvatar = item.message.senderId != currentUserId,
+                                            avatarUrl = if (item.message.senderId != currentUserId) user.profileImageUrl else null,
+                                            navController = navController
+                                        )
+                                    }
+                                    is ChatItem.CallItem -> {
+                                        com.baothanhbin.instagrambin.ui.components.CallHistoryItem(
+                                            callHistory = item.callHistory,
+                                            isCurrentUser = item.callHistory.fromUserId == currentUserId,
+                                            onCallClick = {
+                                                // Start new call when clicking on call history
+                                                if (permissionState.hasAllPermissions) {
+                                                    videoCallViewModel.startCall(user)
+                                                    callHistoryViewModel.saveCallStart(user.uid, "video")
+                                                } else {
+                                                    permissionLauncher.launch(videoCallViewModel.getRequiredPermissions())
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
                             }
 
                             // Loading indicator at bottom for initial load
-                            if (messageState.isLoading && messageState.messages.isEmpty()) {
+                            if (messageState.isLoading && combinedItems.isEmpty()) {
                                 item {
                                     Box(
                                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -731,4 +783,10 @@ private val emojis = listOf(
     "💃", "🕺", "🕴️", "👯", "🧖", "🧗", "🤺", "🤾",
     "🏌️", "🏇", "🧘", "🏄", "🏊", "🤽", "🏋️", "🚴",
     "🚵", "🤸", "⛹️", "🤹", "🤼", "🤽", "🤾", "🤺"
-) 
+)
+
+// Sealed class để combine messages và call history
+sealed class ChatItem {
+    data class MessageItem(val message: com.baothanhbin.instagrambin.model.Message) : ChatItem()
+    data class CallItem(val callHistory: com.baothanhbin.instagrambin.model.CallHistory) : ChatItem()
+} 

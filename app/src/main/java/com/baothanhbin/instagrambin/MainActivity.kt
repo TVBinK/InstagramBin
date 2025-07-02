@@ -55,12 +55,26 @@ import com.baothanhbin.instagrambin.viewmodel.VideoCallViewModel
 
 // Lớp chính của ứng dụng, kế thừa ComponentActivity để sử dụng Jetpack Compose
 class MainActivity : ComponentActivity() {
+    // Đổi sang Triple để lưu callId, callerId, callerName
+    private val openVideoCallState = mutableStateOf<Triple<String, String, String?>?>(null)
+    // Flag để nhớ đang xử lý video call từ notification
+    private val isProcessingVideoCallNotification = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         // Xử lý intent từ notification
-        handleNotificationIntent(intent.extras)
-        
+        handleNotificationIntent(intent?.extras)
+
+        val openVideoCall = intent?.getBooleanExtra("openVideoCall", false) == true
+        val callerId = intent?.getStringExtra("caller_id")
+        val callerName = intent?.getStringExtra("caller_name")
+        val callId = intent?.getStringExtra("call_id")
+        if (openVideoCall && !callerId.isNullOrBlank() && !callId.isNullOrBlank()) {
+            openVideoCallState.value = Triple(callId, callerId, callerName)
+            isProcessingVideoCallNotification.value = true
+        }
+
         setContent {
             // Áp dụng theme tùy chỉnh của ứng dụng
             InstagramUiComposeTheme {
@@ -83,6 +97,28 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // Tạo NavController để quản lý điều hướng
                     val navController = rememberNavController()
+                    val openVideoCall = openVideoCallState.value
+                    val isProcessingVideoCall = isProcessingVideoCallNotification.value
+                    val hasPendingVideoCall = remember(openVideoCall, isProcessingVideoCall) { 
+                        openVideoCall != null || isProcessingVideoCall 
+                    }
+                    val context = LocalContext.current
+                    val videoCallViewModel: VideoCallViewModel = viewModel { VideoCallViewModel(context) }
+
+                    // Khi openVideoCallState thay đổi, cập nhật ViewModel và điều hướng (từ notification)
+                    LaunchedEffect(openVideoCall) {
+                        openVideoCall?.let { (callId, callerId, callerName) ->
+                            videoCallViewModel.setIncomingCallFromNotification(callId, callerId, callerName)
+                            navController.navigate("video_call_screen/$callerId") {
+                                popUpTo("splash") { inclusive = true }
+                            }
+                            openVideoCallState.value = null
+                            // Delay một chút để đảm bảo navigation hoàn tất trước khi reset flag
+                            kotlinx.coroutines.delay(1000)
+                            isProcessingVideoCallNotification.value = false
+                        }
+                    }
+
                     // Khởi tạo AuthViewModel để quản lý trạng thái xác thực
                     val authViewModel: AuthViewModel = viewModel(
                         factory = AuthViewModelFactory(LocalContext.current.applicationContext as Application)
@@ -105,7 +141,7 @@ class MainActivity : ComponentActivity() {
 
                     // Điều hướng sau xác thực thành công
                     LaunchedEffect(authState) {
-                        if (authState is AuthState.Success) {
+                        if (authState is AuthState.Success && !hasPendingVideoCall) {
                             handleNotificationNavigation(navController)
                         }
                     }
@@ -121,24 +157,30 @@ class MainActivity : ComponentActivity() {
                         "chat/{userId}"
                     )
 
-                    // Khởi tạo VideoCallViewModel ở cấp cao nhất
-                    val context = LocalContext.current
-                    val videoCallViewModel: VideoCallViewModel = viewModel { VideoCallViewModel(context) }
-
-                    // Observe incomingCall và điều hướng sang VideoCallScreen khi có cuộc gọi đến
+                    // Observe incomingCall và điều hướng sang VideoCallScreen khi có cuộc gọi đến (từ WebRTC service)
+                    // Chỉ chạy nếu KHÔNG có pending video call từ notification
                     val incomingCall by videoCallViewModel.incomingCall.collectAsState()
                     val callState by videoCallViewModel.getWebRTCService().callState.collectAsState()
                     val shouldPopBack by videoCallViewModel.shouldPopBack.collectAsState()
                     LaunchedEffect(incomingCall, callState, shouldPopBack) {
-                        if (incomingCall != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.RINGING) {
-                            android.util.Log.d("MainActivity", "Navigating to video call screen for incoming call from ${incomingCall!!.fromUserId}")
-                            navController.navigate("video_call_screen/${incomingCall!!.fromUserId}")
-                        }
-                        if (shouldPopBack) {
-                            android.util.Log.d("MainActivity", "shouldPopBack triggered - popping back stack")
-                            navController.popBackStack()
-                            videoCallViewModel.resetPopBackFlag()
-                            android.util.Log.d("MainActivity", "Popped back stack and reset shouldPopBack flag")
+                        // Chỉ xử lý nếu KHÔNG có pending video call từ notification
+                        if (!hasPendingVideoCall) {
+                            if (incomingCall != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.RINGING) {
+                                android.util.Log.d("MainActivity", "Navigating to video call screen for incoming call from "+incomingCall!!.fromUserId)
+                                navController.navigate("video_call_screen/${incomingCall!!.fromUserId}")
+                            }
+                            if (shouldPopBack) {
+                                android.util.Log.d("MainActivity", "shouldPopBack triggered - popping back stack")
+                                val popped = navController.popBackStack()
+                                if (!popped) {
+                                    // Nếu không còn màn hình nào, điều hướng về home
+                                    navController.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
+                                }
+                                videoCallViewModel.resetPopBackFlag()
+                                android.util.Log.d("MainActivity", "Popped back stack and reset shouldPopBack flag")
+                            }
                         }
                     }
 
@@ -177,13 +219,16 @@ class MainActivity : ComponentActivity() {
                             composable("splash") {
                                 SplashScreen(
                                     onSplashFinished = {
-                                        // Khi splash hoàn tất, điều hướng dựa trên trạng thái xác thực
-                                        when (authState) {
-                                            is AuthState.Success -> navController.navigate("home") {
-                                                popUpTo("splash") { inclusive = true } // Xóa màn hình splash
-                                            }
-                                            else -> navController.navigate("login") {
-                                                popUpTo("splash") { inclusive = true } // Xóa màn hình splash
+                                        if (hasPendingVideoCall) {
+                                            // Không điều hướng sang home nếu có pending video call
+                                        } else {
+                                            when (authState) {
+                                                is AuthState.Success -> navController.navigate("home") {
+                                                    popUpTo("splash") { inclusive = true }
+                                                }
+                                                else -> navController.navigate("login") {
+                                                    popUpTo("splash") { inclusive = true }
+                                                }
                                             }
                                         }
                                     }
@@ -439,8 +484,14 @@ class MainActivity : ComponentActivity() {
                                     com.baothanhbin.instagrambin.ui.screens.VideoCallScreen(
                                         user = callUser,
                                         webRTCService = videoCallViewModel.getWebRTCService(),
-                                        onEndCall = { videoCallViewModel.endCall(); navController.popBackStack() },
-                                        onBackClick = { videoCallViewModel.endCall(); navController.popBackStack() },
+                                        onEndCall = {
+                                            videoCallViewModel.endCall()
+                                            navController.popBackStack()
+                                        },
+                                        onBackClick = {
+                                            videoCallViewModel.endCall()
+                                            navController.popBackStack()
+                                        },
                                         videoCallViewModel = videoCallViewModel
                                     )
                                 }
@@ -455,6 +506,15 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         handleNotificationIntent(intent?.extras)
+        val openVideoCall = intent?.getBooleanExtra("openVideoCall", false) == true
+        val callerId = intent?.getStringExtra("caller_id")
+        val callerName = intent?.getStringExtra("caller_name")
+        val callId = intent?.getStringExtra("call_id")
+        if (openVideoCall && !callerId.isNullOrBlank() && !callId.isNullOrBlank()) {
+            openVideoCallState.value = Triple(callId, callerId, callerName)
+            isProcessingVideoCallNotification.value = true
+        }
+        // ... giữ nguyên xử lý chat intent ...
     }
 
     /**
@@ -462,17 +522,28 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleNotificationIntent(extras: Bundle?) {
         extras?.let { bundle ->
+            // Xử lý post detail notification
             val openPostDetail = bundle.getBoolean("openPostDetail", false)
             if (openPostDetail) {
-                // Lưu thông tin để xử lý sau khi app khởi động
                 val postId = bundle.getString("postId") ?: ""
                 val commentId = bundle.getString("commentId") ?: ""
                 
-                // Có thể lưu vào SharedPreferences hoặc biến global để sử dụng sau
                 getSharedPreferences("notification_prefs", MODE_PRIVATE).edit().apply {
                     putBoolean("open_post_detail", true)
                     putString("post_id", postId)
                     putString("comment_id", commentId)
+                    apply()
+                }
+            }
+            
+            // Xử lý chat notification
+            val openChat = bundle.getBoolean("openChat", false)
+            if (openChat) {
+                val senderId = bundle.getString("senderId") ?: ""
+                
+                getSharedPreferences("notification_prefs", MODE_PRIVATE).edit().apply {
+                    putBoolean("open_chat", true)
+                    putString("sender_id", senderId)
                     apply()
                 }
             }
@@ -484,11 +555,25 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleNotificationNavigation(navController: androidx.navigation.NavController) {
         val prefs = getSharedPreferences("notification_prefs", MODE_PRIVATE)
+        
+        // Xử lý post detail notification
         val shouldOpenPostDetail = prefs.getBoolean("open_post_detail", false)
         if (shouldOpenPostDetail) {
             val postId = prefs.getString("post_id", "")
             if (postId?.isNotEmpty() == true) {
                 navController.navigate("post_detail/$postId") {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+                prefs.edit().clear().apply()
+            }
+        }
+        
+        // Xử lý chat notification
+        val shouldOpenChat = prefs.getBoolean("open_chat", false)
+        if (shouldOpenChat) {
+            val senderId = prefs.getString("sender_id", "")
+            if (senderId?.isNotEmpty() == true) {
+                navController.navigate("chat/$senderId") {
                     popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 }
                 prefs.edit().clear().apply()

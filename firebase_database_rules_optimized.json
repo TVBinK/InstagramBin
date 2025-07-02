@@ -1,0 +1,143 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid",
+        ".indexOn": ["username", "email"],
+        "fcmToken": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "chats": {
+      "$userId": {
+        "$otherUserId": {
+          ".read": "auth != null && (auth.uid == $userId || auth.uid == $otherUserId)",
+          ".write": "auth != null && (auth.uid == $userId || auth.uid == $otherUserId)",
+          ".indexOn": ["timestamp", "senderId", "receiverId"],
+          "$messageId": {
+            ".validate": "newData.hasChildren(['messageId', 'senderId', 'receiverId', 'content', 'timestamp'])",
+            "messageId": {
+              ".validate": "newData.isString()"
+            },
+            "senderId": {
+              ".validate": "newData.isString() && newData.val() == auth.uid"
+            },
+            "receiverId": {
+              ".validate": "newData.isString()"
+            },
+            "content": {
+              ".validate": "newData.isString() && newData.val().length <= 1000"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            },
+            "isRead": {
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        }
+      }
+    },
+    "posts": {
+      "$postId": {
+        ".read": "auth != null",
+        ".write": "auth != null && data.child('userId').val() == auth.uid",
+        ".indexOn": ["timestamp", "userId"],
+        "comments": {
+          "$commentId": {
+            ".read": "auth != null",
+            ".write": "auth != null && newData.child('userId').val() == auth.uid",
+            ".indexOn": ["timestamp"]
+          }
+        },
+        "likes": {
+          "$userId": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid == $userId"
+          }
+        }
+      }
+    },
+    "stories": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $userId",
+        ".indexOn": ["timestamp"],
+        "$storyId": {
+          ".validate": "newData.hasChildren(['content', 'timestamp'])",
+          "timestamp": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+    "followers": {
+      "$userId": {
+        "$followerId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $followerId"
+        }
+      }
+    },
+    "following": {
+      "$userId": {
+        "$followingId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId"
+        }
+      }
+    },
+    "notifications": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId",
+        ".indexOn": ["timestamp", "type"],
+        "$notificationId": {
+          ".validate": "newData.hasChildren(['type', 'timestamp'])",
+          "timestamp": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+    "messages": {
+      "$messageId": {
+        ".read": "auth != null && (data.child('senderId').val() == auth.uid || data.child('receiverId').val() == auth.uid)",
+        ".write": "auth != null && newData.child('senderId').val() == auth.uid"
+      }
+    },
+    "video_calls": {
+      "$callId": {
+        ".read": "auth != null && (data.child('callerId').val() == auth.uid || data.child('receiverId').val() == auth.uid)",
+        ".write": "auth != null && (newData.child('callerId').val() == auth.uid || newData.child('receiverId').val() == auth.uid)"
+      }
+    },
+    "signaling": {
+      "$callId": {
+        "$signalId": {
+          ".read": "auth != null",
+          ".write": "auth != null && (data.child('fromUserId').val() == auth.uid || data.child('toUserId').val() == auth.uid)",
+          ".validate": "newData.hasChildren(['signalType', 'callId', 'fromUserId', 'toUserId', 'timestamp'])"
+        }
+      }
+    },
+    "comments": {
+      "$postId": {
+        "$commentId": {
+          ".read": "auth != null",
+          ".write": "auth != null && newData.child('userId').val() == auth.uid"
+        }
+      }
+    },
+    "likes": {
+      "$postId": {
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId"
+        }
+      }
+    }
+  }
+} 
