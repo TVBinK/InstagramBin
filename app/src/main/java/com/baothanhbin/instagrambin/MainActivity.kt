@@ -1,5 +1,7 @@
 package com.baothanhbin.instagrambin
 
+
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -50,21 +52,25 @@ import com.baothanhbin.instagrambin.ui.screens.FullImageScreen
 import com.baothanhbin.instagrambin.viewmodel.AuthViewModelFactory
 import com.baothanhbin.instagrambin.service.FCMService
 import com.baothanhbin.instagrambin.viewmodel.HomeViewModelFactory
-import android.content.Intent
+
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.baothanhbin.instagrambin.viewmodel.VideoCallViewModel
 
-// Lớp chính của ứng dụng, kế thừa ComponentActivity để sử dụng Jetpack Compose
+
 class MainActivity : ComponentActivity() {
     // Đổi sang Triple để lưu callId, callerId, callerName
     private val openVideoCallState = mutableStateOf<Triple<String, String, String?>?>(null)
     // Flag để nhớ đang xử lý video call từ notification
     private val isProcessingVideoCallNotification = mutableStateOf(false)
 
+
+    @SuppressLint("StateFlowValueCalledInComposition")
+    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Xử lý intent từ notification
-        handleNotificationIntent(intent?.extras)
+
 
         val openVideoCall = intent?.getBooleanExtra("openVideoCall", false) == true
         val callerId = intent?.getStringExtra("caller_id")
@@ -76,7 +82,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // Áp dụng theme tùy chỉnh của ứng dụng
             InstagramUiComposeTheme {
                 // Quản lý màu sắc thanh hệ thống (status bar, navigation bar)
                 val systemUiController = rememberSystemUiController()
@@ -134,17 +139,9 @@ class MainActivity : ComponentActivity() {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
-                    // Xử lý navigation từ notification
-                    LaunchedEffect(Unit) {
-                        handleNotificationNavigation(navController)
-                    }
 
-                    // Điều hướng sau xác thực thành công
-                    LaunchedEffect(authState) {
-                        if (authState is AuthState.Success && !hasPendingVideoCall) {
-                            handleNotificationNavigation(navController)
-                        }
-                    }
+
+
 
                     // Danh sách các tuyến đường không hiển thị thanh trên và thanh dưới
                     val hideBarsRoutes = listOf(
@@ -318,29 +315,7 @@ class MainActivity : ComponentActivity() {
                                 LaunchedEffect(userId) {
                                     userProfileViewModel.setUserId(userId)
                                 }
-                                com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
-                                    viewModel = userProfileViewModel,
-                                    navController = navController,
-                                    onBackClick = { navController.popBackStack() },
-                                    onFollowClick = { userProfileViewModel.toggleFollow() }, // Theo dõi
-                                    onUnfollowClick = { userProfileViewModel.toggleFollow() }, // Bỏ theo dõi
-                                    onMessageClick = {
-                                        navController.navigate("chat/$userId") // Mở màn hình chat
-                                    },
-                                    onFollowersClick = { navController.navigate("followers/$userId") }, // Xem danh sách người theo dõi
-                                    onFollowingClick = { navController.navigate("following/$userId") } // Xem danh sách đang theo dõi
-                                )
-                            }
-
-                            // Màn hình hồ sơ của người dùng khác (alias cho profile/{userId})
-                            composable("user_profile/{userId}") { backStackEntry ->
-                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
-                                // Tải dữ liệu hồ sơ dựa trên userId
-                                LaunchedEffect(userId) {
-                                    userProfileViewModel.setUserId(userId)
-                                }
-                                com.baothanhbin.instagrambin.ui.screens.UserProfileScreen(
+                                UserProfileScreen(
                                     viewModel = userProfileViewModel,
                                     navController = navController,
                                     onBackClick = { navController.popBackStack() },
@@ -488,10 +463,6 @@ class MainActivity : ComponentActivity() {
                                             videoCallViewModel.endCall()
                                             navController.popBackStack()
                                         },
-                                        onBackClick = {
-                                            videoCallViewModel.endCall()
-                                            navController.popBackStack()
-                                        },
                                         videoCallViewModel = videoCallViewModel
                                     )
                                 }
@@ -503,83 +474,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        handleNotificationIntent(intent?.extras)
-        val openVideoCall = intent?.getBooleanExtra("openVideoCall", false) == true
-        val callerId = intent?.getStringExtra("caller_id")
-        val callerName = intent?.getStringExtra("caller_name")
-        val callId = intent?.getStringExtra("call_id")
-        if (openVideoCall && !callerId.isNullOrBlank() && !callId.isNullOrBlank()) {
-            openVideoCallState.value = Triple(callId, callerId, callerName)
-            isProcessingVideoCallNotification.value = true
-        }
-        // ... giữ nguyên xử lý chat intent ...
-    }
 
-    /**
-     * Xử lý intent từ notification
-     */
-    private fun handleNotificationIntent(extras: Bundle?) {
-        extras?.let { bundle ->
-            // Xử lý post detail notification
-            val openPostDetail = bundle.getBoolean("openPostDetail", false)
-            if (openPostDetail) {
-                val postId = bundle.getString("postId") ?: ""
-                val commentId = bundle.getString("commentId") ?: ""
-                
-                getSharedPreferences("notification_prefs", MODE_PRIVATE).edit().apply {
-                    putBoolean("open_post_detail", true)
-                    putString("post_id", postId)
-                    putString("comment_id", commentId)
-                    apply()
-                }
-            }
-            
-            // Xử lý chat notification
-            val openChat = bundle.getBoolean("openChat", false)
-            if (openChat) {
-                val senderId = bundle.getString("senderId") ?: ""
-                
-                getSharedPreferences("notification_prefs", MODE_PRIVATE).edit().apply {
-                    putBoolean("open_chat", true)
-                    putString("sender_id", senderId)
-                    apply()
-                }
-            }
-        }
-    }
-
-    /**
-     * Xử lý navigation từ notification
-     */
-    private fun handleNotificationNavigation(navController: androidx.navigation.NavController) {
-        val prefs = getSharedPreferences("notification_prefs", MODE_PRIVATE)
-        
-        // Xử lý post detail notification
-        val shouldOpenPostDetail = prefs.getBoolean("open_post_detail", false)
-        if (shouldOpenPostDetail) {
-            val postId = prefs.getString("post_id", "")
-            if (postId?.isNotEmpty() == true) {
-                navController.navigate("post_detail/$postId") {
-                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                }
-                prefs.edit().clear().apply()
-            }
-        }
-        
-        // Xử lý chat notification
-        val shouldOpenChat = prefs.getBoolean("open_chat", false)
-        if (shouldOpenChat) {
-            val senderId = prefs.getString("sender_id", "")
-            if (senderId?.isNotEmpty() == true) {
-                navController.navigate("chat/$senderId") {
-                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                }
-                prefs.edit().clear().apply()
-            }
-        }
-    }
 }
 
 // Composable hiển thị màn hình tải với vòng tròn tiến trình

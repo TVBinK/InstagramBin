@@ -154,23 +154,3 @@ private fun FollowerItem(
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun FollowersScreenPreview() {
-    val dummyFollowers = List(10) {
-        User(
-            uid = "user$it",
-            username = "user$it",
-            fullName = "User $it",
-            profileImageUrl = "https://example.com/profile.jpg"
-        )
-    }
-
-    FollowersScreen(
-        followers = dummyFollowers,
-        onBackClick = {},
-        onUserClick = {},
-        onFollowClick = {},
-        onUnfollowClick = {}
-    )
-}

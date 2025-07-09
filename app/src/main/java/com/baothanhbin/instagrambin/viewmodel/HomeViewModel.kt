@@ -30,9 +30,14 @@ data class HomeUiState(
 class HomeViewModel(
     application: Application // Context ứng dụng
 ) : AndroidViewModel(application) {
-    // StateFlow để lưu và cập nhật trạng thái giao diện
+    // StateFlow để lưu và cập nhật trạng thái giao diện realtime
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    // Repository để lấy dữ liệu bài đăng
+    private val postRepository = PostRepository(application)
+    // Repository để lấy dữ liệu người dùng
+    private val userRepository = UserRepository()
 
     // StateFlow để theo dõi trạng thái làm mới dữ liệu
     private val _isRefreshing = MutableStateFlow(false)
@@ -40,10 +45,6 @@ class HomeViewModel(
 
     // Instance của FirebaseAuth để quản lý xác thực người dùng
     private val auth = FirebaseAuth.getInstance()
-    // Repository để lấy dữ liệu bài đăng
-    private val postRepository = PostRepository(application)
-    // Repository để lấy dữ liệu người dùng
-    private val userRepository = UserRepository()
 
     // Biến kiểm tra xem dữ liệu đã được tải lần đầu chưa
     private var isLoaded = false
@@ -84,7 +85,7 @@ class HomeViewModel(
                     // Tải danh sách bạn bè (người đang theo dõi)
                     val friends = userRepository.getFriends(currentUserId)
 
-                    // Cập nhật trạng thái giao diện với dữ liệu đã tải
+                    // Cập nhật StateFlow → UI tự động re-compose
                     _uiState.update {
                         it.copy(
                             posts = posts,

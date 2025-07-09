@@ -42,7 +42,7 @@ class MessageRepository(private val application: Application) {
             timestamp = System.currentTimeMillis()
         )
 
-        // Save message to both sender and receiver's chat
+        // Lưu tin nhắn vào cả hai bên chat
         val senderChatRef = database.getReference("chats")
             .child(currentUser.uid)
             .child(receiverId)
@@ -56,59 +56,7 @@ class MessageRepository(private val application: Application) {
         senderChatRef.setValue(message).await()
         receiverChatRef.setValue(message).await()
 
-        // Get receiver's FCM token and send notification
-        val receiverSnapshot = database.getReference("users").child(receiverId).get().await()
-        val receiver = receiverSnapshot.getValue(User::class.java)
-        val receiverToken = receiverSnapshot.child("fcmToken").getValue(String::class.java)
-
-        // Get sender's info for notification
-        val senderSnapshot = database.getReference("users").child(currentUser.uid).get().await()
-        val sender = senderSnapshot.getValue(User::class.java)
-
-        // Send FCM notification
-        receiverToken?.let { token ->
-            sendFCMNotification(
-                token = token,
-                title = sender?.username ?: "Người dùng",
-                body = content
-            )
-        }
-
         return message
-    }
-
-    private fun sendFCMNotification(token: String, title: String, body: String) {
-        Thread {
-            try {
-                val url = URL("https://fcm.googleapis.com/fcm/send")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("Authorization", "key=YOUR_SERVER_KEY") // Thay YOUR_SERVER_KEY bằng Server Key từ Firebase Console
-
-                val json = JSONObject().apply {
-                    put("to", token)
-                    put("notification", JSONObject().apply {
-                        put("title", title)
-                        put("body", body)
-                        put("sound", "default")
-                    })
-                }
-
-                connection.doOutput = true
-                connection.outputStream.use { os ->
-                    os.write(json.toString().toByteArray())
-                    os.flush()
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    // Notification sent successfully
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }.start()
     }
 
     suspend fun sendImage(receiverId: String, imageUri: Uri): Message {
@@ -126,7 +74,7 @@ class MessageRepository(private val application: Application) {
             timestamp = System.currentTimeMillis()
         )
 
-        // Save message to both sender and receiver's chat
+        // Lưu tin nhắn vào cả hai bên chat
         val senderChatRef = database.getReference("chats")
             .child(currentUser.uid)
             .child(receiverId)

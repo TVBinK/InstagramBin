@@ -48,7 +48,7 @@ class FCMService : FirebaseMessagingService() {
                 return
             }
             "video_call_offer" -> {
-                // Hiển thị notification với 2 nút cho video call
+                // Khi có cuộc gọi video đến, hiển thị notification
                 showVideoCallNotification(
                     title,
                     body,
@@ -117,64 +117,47 @@ class FCMService : FirebaseMessagingService() {
     }
 
     private fun showNotification(title: String, body: String, type: String, data: Map<String, String>) {
+        // Xác định channelId và channelName dựa trên loại notification
         val channelId = when (type) {
-            "like" -> "like_notification"
-            "comment" -> "comment_notification"
+            "like", "post_like" -> "like_notification"
+            "comment", "post_comment" -> "comment_notification"
             "reply" -> "reply_notification"
             "new_message" -> "chat_notification"
-            "post_like" -> "like_notification"
-            "post_comment" -> "comment_notification"
             else -> "general_notification"
         }
-        
-        val channelName = when (type) {
-            "like", "post_like" -> "Like Notifications"
-            "comment", "post_comment" -> "Comment Notifications"
-            "reply" -> "Reply Notifications"
-            "new_message" -> "Chat Notifications"
-            else -> "General Notifications"
-        }
-        
+        // Tạo NotificationManager và NotificationChannel
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
+        // Tạo notification channel nếu chưa tồn tại
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                channelName,
+                channelId, // Dùng luôn channelId làm tên channel cho gọn
                 NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Notifications for $channelName"
-                enableVibration(true)
-                enableLights(true)
-            }
+            )
             notificationManager.createNotificationChannel(channel)
         }
-        
+        // Tạo intent để mở app khi nhấn vào notification
         val intent = when (type) {
             "like", "post_like", "comment", "post_comment" -> {
-                val postId = data["postId"]
                 Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)  // Xóa các activity cũ trong stack
                     putExtra("openPostDetail", true)
-                    putExtra("postId", postId)
+                    putExtra("postId", data["postId"])
                 }
             }
             "reply" -> {
-                val postId = data["postId"]
-                val commentId = data["commentId"]
                 Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     putExtra("openPostDetail", true)
-                    putExtra("postId", postId)
-                    putExtra("commentId", commentId)
+                    putExtra("postId", data["postId"])
+                    putExtra("commentId", data["commentId"])
                 }
             }
             "new_message" -> {
-                val senderId = data["senderId"]
                 Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     putExtra("openChat", true)
-                    putExtra("senderId", senderId)
+                    putExtra("senderId", data["senderId"])
                 }
             }
             else -> {
@@ -183,32 +166,24 @@ class FCMService : FirebaseMessagingService() {
                 }
             }
         }
-        
+        // Tạo PendingIntent để mở activity khi nhấn vào notification
         val pendingIntent = PendingIntent.getActivity(
             this,
             type.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
-        val icon = when (type) {
-            "like", "post_like" -> R.drawable.ic_heart
-            "comment", "post_comment", "reply" -> R.drawable.ic_comment
-            "new_message" -> R.drawable.ic_send
-            else -> R.drawable.instagram_tag_icon
-        }
-        
-        val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(icon)
+        // Tạo notification với các icon, title,
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-        
-        val notification = notificationBuilder.build()
-        val notificationId = type.hashCode()
-        notificationManager.notify(notificationId, notification)
+            .build()
+        // Hiển thị notification
+        notificationManager.notify(type.hashCode(), notification)
     }
 
     private fun saveTokenToDatabase(token: String) {
@@ -231,10 +206,11 @@ class FCMService : FirebaseMessagingService() {
     }
 
     companion object {
-        // Method để gọi từ bên ngoài khi user đăng nhập
+        // Hàm này sẽ được gọi khi người dùng đăng nhập thành công
         fun updateFCMToken() {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
+                    // Lấy token FCM mới và lưu vào database
                     val token = task.result
                     token?.let { 
                         val auth = FirebaseAuth.getInstance()

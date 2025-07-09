@@ -270,10 +270,10 @@ object WebRTCHelper {
                 Log.e(TAG, "Cannot create PeerConnection - factory is null")
                 return null
             }
-            
+            //Tạo "cầu nối" với cấu hình
             val rtcConfig = PeerConnection.RTCConfiguration(iceServers)
             val peerConnection = factory.createPeerConnection(rtcConfig, observer)
-            Log.d(TAG, "PeerConnection created successfully")
+
             peerConnection
         } catch (e: Exception) {
             Log.e(TAG, "Error creating PeerConnection", e)

@@ -41,8 +41,6 @@ import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 
-// Composable chính cho màn hình Home
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel, // ViewModel cung cấp dữ liệu
@@ -248,6 +246,7 @@ fun PostItem(
                     .size(33.dp),
                 contentAlignment = Alignment.Center
             ) {
+                // Hiển thị ảnh đại diện của người dùng
                 AsyncImage(
                     model = ImageRequest
                         .Builder(LocalContext.current)

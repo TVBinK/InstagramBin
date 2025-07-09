@@ -134,12 +134,11 @@ class VideoCallViewModel(private val context: Context) : ViewModel() {
     
     fun acceptCall(callId: String, fromUserId: String) {
         if (!permissionService.hasAllVideoCallPermissions()) {
-            // Handle permission request
             return
         }
         
         currentUserId?.let { userId ->
-            // Get user info
+            // Lấy thông tin người gọi từ Firebase để hiển thị UI
             database.getReference("users").child(fromUserId)
                 .get()
                 .addOnSuccessListener { snapshot ->
@@ -199,18 +198,18 @@ class VideoCallViewModel(private val context: Context) : ViewModel() {
     private fun listenForNewCalls() {
         currentUserId?.let { userId ->
             
-            // Remove previous listener if exists
+            // Hủy listener cũ nếu có
             incomingCallListener?.let { listener ->
                 try {
                     database.getReference("calls").removeEventListener(listener)
                 } catch (e: Exception) {
-                    // Silent catch
+
                 }
             }
-            
+            // Tạo listener mới
             incomingCallListener = object : com.google.firebase.database.ValueEventListener {
                 override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                    
+                    // Duyệt qua tất cả các cuộc gọi đến người dùng hiện tại
                     for (childSnapshot in snapshot.children) {
                         val callData = childSnapshot.getValue(object : GenericTypeIndicator<Map<String, Any>>() {})
                         val callId = childSnapshot.key
@@ -218,7 +217,7 @@ class VideoCallViewModel(private val context: Context) : ViewModel() {
                         val toUserId = callData?.get("toUserId") as? String
                         val type = callData?.get("type") as? String
                         
-                        // Chỉ quan tâm đến offer call được gọi tới mình và chưa có incoming call
+                        // Kiểm tra xem có phải cuộc gọi đến mình không
                         if (callId != null && fromUserId != null && toUserId == userId && type == "offer" && _incomingCall.value == null) {
                             // Set thông tin call cho WebRTCService để lắng nghe signaling
                             webRTCService.setIncomingCall(callId, userId, fromUserId)
@@ -227,7 +226,7 @@ class VideoCallViewModel(private val context: Context) : ViewModel() {
                 }
                 
                 override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                    // Silent catch
+
                 }
             }
             

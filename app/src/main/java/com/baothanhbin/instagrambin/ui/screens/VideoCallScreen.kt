@@ -16,11 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -53,7 +48,6 @@ fun VideoCallScreen(
     user: User,
     webRTCService: WebRTCService,
     onEndCall: () -> Unit,
-    onBackClick: () -> Unit,
     videoCallViewModel: VideoCallViewModel? = null
 ) {
     val context = LocalContext.current
@@ -99,15 +93,14 @@ fun VideoCallScreen(
     val remoteVideoTrack by webRTCService.remoteVideoTrackFlow.collectAsState()
     val localVideoTrack by webRTCService.localVideoTrackFlow.collectAsState()
     
-    // Get current values once to avoid delegated property issues
+    // Lưu trữ track và EGL context hiện tại để tránh re-composition không cần thiết
     val currentRemoteTrack = remoteVideoTrack
     val currentLocalTrack = localVideoTrack  
     val currentEglBase = eglBase
     
-    // State to track if video views are swapped
+   // Biến trạng thái để hoán đổi video preview
     var isVideoSwapped by remember { mutableStateOf(false) }
-    
-    // State cho drag local video
+
     val density = LocalDensity.current
 
     var ringtone: Ringtone? by remember { mutableStateOf(null) }
@@ -149,14 +142,6 @@ fun VideoCallScreen(
             paddingPx
         )
         var localVideoOffset by remember { mutableStateOf(defaultOffset) }
-        /* 
-         * Z-Index Layer System:
-         * - Remote video/placeholder: zIndex(0f) - Background layer
-         * - Top bar & Call controls: zIndex(5f) - UI controls layer  
-         * - Call state overlay: zIndex(8f) - Overlay layer
-         * - Local video preview: zIndex(50f) - HIGHEST PRIORITY - Never covered
-         * - Swap icons: zIndex(51f) - Interactive elements layer
-         */
         // 1. Remote video (full screen) - chỉ render khi có track và EGL context hợp lệ
         if (currentRemoteTrack != null && currentEglBase != null && isEglValid) {
             val remoteSurfaceView = remember(currentEglBase, currentRemoteTrack) {
@@ -207,7 +192,6 @@ fun VideoCallScreen(
                     .zIndex(0f) // Remote video ở layer thấp nhất
             )
         } else {
-            // Placeholder khi không có remote video
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -292,25 +276,6 @@ fun VideoCallScreen(
                     else -> {}
                 }
             }
-        }
-        
-        // Back button (top left)
-        IconButton(
-            onClick = {
-                onBackClick()
-            },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-                .size(40.dp)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                .zIndex(5f) // Back button ở layer cao
-        ) {
-            Icon(
-                Icons.Default.ArrowBack,
-                contentDescription = "Quay lại",
-                tint = Color.White
-            )
         }
         
         // User info (center top)

@@ -148,28 +148,6 @@ class CommentViewModel(private val application: Application) : ViewModel() {
                                 commentsRef.child(postId).child("commentsCount")
                                     .setValue(currentCount + 1)
                                     .addOnSuccessListener {
-                                        // Gửi notification sau khi comment thành công
-                                        post?.let { postData ->
-                                            viewModelScope.launch {
-                                                if (comment.replyToCommentId != null) {
-                                                    // Nếu là reply, gửi notification cho chủ comment gốc
-                                                    val originalCommentSnapshot = database.getReference("posts")
-                                                        .child(postId)
-                                                        .child("comments")
-                                                        .child(comment.replyToCommentId)
-                                                        .get()
-                                                        .await()
-                                                    val originalComment = originalCommentSnapshot.getValue(Comment::class.java)
-                                                    originalComment?.let { original ->
-                                                        notificationService.sendReplyNotification(original, commentWithId)
-                                                    }
-                                                } else {
-                                                    // Nếu là comment mới, gửi notification cho chủ bài viết
-                                                    notificationService.sendCommentNotification(postData, commentWithId)
-                                                }
-                                            }
-                                        }
-                                        
                                         _uiState.value = _uiState.value.copy(isLoading = false)
                                         clearReply()
                                     }

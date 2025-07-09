@@ -15,14 +15,16 @@ class PostRepository(private val application: Application) {
 
     suspend fun getPosts(): List<Post> {
         val currentUser = auth.currentUser ?: throw Exception("User not logged in")
+        //Lấy thông tin người dùng hiện tại
         val userRef = database.getReference("users").child(currentUser.uid)
         val userSnapshot = userRef.get().await()
         val user = userSnapshot.getValue(User::class.java)
         
-        // Get posts from current user and users they follow
+        // Lấy danh sách người dùng đang follow
         val followingIds = user?.following?.keys?.toList() ?: emptyList()
-        val userIds = followingIds + currentUser.uid
-        
+        val userIds = followingIds + currentUser.uid //bao gồm cả người dùng hiện tại
+
+        // Lấy bài đăng từ tất cả người dùng trong danh sách userIds
         val posts = mutableListOf<Post>()
         for (userId in userIds) {
             val userPostsSnapshot = database.getReference("posts")
@@ -37,10 +39,10 @@ class PostRepository(private val application: Application) {
             posts.addAll(userPosts)
         }
 
-        // Sort posts by timestamp
+        // Sắp xếp bài đăng theo thời gian giảm dần
         val sortedPosts = posts.sortedByDescending { it.timestamp }
 
-        // Load user data for each post and add timeAgo
+        // Lấy thông tin người dùng cho mỗi bài đăng và tính toán thời gian đã đăng
         return sortedPosts.map { post ->
             val postUserSnapshot = database.getReference("users")
                 .child(post.userId)
@@ -53,18 +55,19 @@ class PostRepository(private val application: Application) {
             )
         }
     }
-
     suspend fun toggleLike(postId: String, userId: String): Post {
         val postRef = database.getReference("posts").child(postId)
         val postSnapshot = postRef.get().await()
         val post = postSnapshot.getValue(Post::class.java) ?: throw Exception("Post not found")
-        
+        // Kiểm tra xem người dùng đã thích bài đăng hay chưa
         val isLiked = post.likes.containsKey(userId)
+        // Cập nhật trạng thái thích/unlike bài đăng
         val updatedLikes = post.likes.toMutableMap().apply {
             if (isLiked) remove(userId) else put(userId, true)
         }
+        // Cập nhật số lượng likes
         val newLikesCount = if (isLiked) post.likesCount - 1 else post.likesCount + 1
-        
+        // Cập nhật bài đăng trong cơ sở dữ liệu
         postRef.child("likes").setValue(updatedLikes).await()
         postRef.child("likesCount").setValue(newLikesCount).await()
         
@@ -73,7 +76,7 @@ class PostRepository(private val application: Application) {
             notificationService.sendLikeNotification(post, userId)
         }
         
-        // Fetch user and recalculate timeAgo
+        // Cập nhật thông tin người dùng của bài đăng
         val postUserSnapshot = database.getReference("users")
             .child(post.userId)
             .get()
@@ -86,7 +89,7 @@ class PostRepository(private val application: Application) {
             timeAgo = getTimeAgo(post.timestamp)
         )
     }
-
+    //ham tinh toán thời gian đã đăng
     private fun getTimeAgo(timestamp: Long): String {
         val currentTime = System.currentTimeMillis()
         val diffInSeconds = (currentTime - timestamp) / 1000

@@ -28,6 +28,8 @@ import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.material.icons.rounded.EmojiEmotions
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Send
@@ -60,6 +62,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import com.baothanhbin.instagrambin.R
 
+@RequiresApi(Build.VERSION_CODES.P)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -76,18 +79,18 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var showEmojiPicker by remember { mutableStateOf(false) }
     
-    // Call history ViewModel
+    // lich sử cuộc gọi
     val callHistoryViewModel: com.baothanhbin.instagrambin.viewmodel.CallHistoryViewModel = viewModel()
     val callHistories by callHistoryViewModel.callHistories.collectAsState()
     
-    // Video call states
+    // Video call state
     val isInCall by videoCallViewModel.isInCall.collectAsState()
     val currentCallUser by videoCallViewModel.currentCallUser.collectAsState()
     val incomingCall by videoCallViewModel.incomingCall.collectAsState()
     val permissionState by videoCallViewModel.permissionState.collectAsState()
     val callState by videoCallViewModel.getWebRTCService().callState.collectAsState()
 
-    // Permission launcher
+    // quản lý quyền truy cập camera và microphone
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -109,29 +112,27 @@ fun ChatScreen(
     }
 
     LaunchedEffect(user.uid) {
-        // Clean up any existing duplicates first
+        // xóa các tin nhắn trùng lặp trước khi tải lại
         messageViewModel.cleanupDuplicates()
-        // Then load messages for this user
+        // nạp lại tin nhắn
         messageViewModel.loadMessages(user.uid)
-        // Load call history
+        // tải lại lịch sử cuộc gọi
         callHistoryViewModel.loadCallHistory(user.uid)
     }
-
-    // Combine messages and call histories and sort by timestamp
     val combinedItems = remember(messageState.messages, callHistories) {
         val items = mutableListOf<ChatItem>()
         
-        // Add messages
+        // thêm tin nhắn vào danh sách
         messageState.messages.forEach { message ->
             items.add(ChatItem.MessageItem(message))
         }
         
-        // Add call histories
+        // them thêm lịch sử cuộc gọi vào danh sách
         callHistories.forEach { callHistory ->
             items.add(ChatItem.CallItem(callHistory))
         }
         
-        // Sort by timestamp
+        // sap xếp các mục theo thời gian
         items.sortedBy { 
             when (it) {
                 is ChatItem.MessageItem -> it.message.timestamp
@@ -140,7 +141,7 @@ fun ChatScreen(
         }
     }
 
-    // Track previous message count to detect new messages
+
     var previousItemCount by remember { mutableStateOf(0) }
     
     LaunchedEffect(combinedItems.size) {
@@ -153,19 +154,19 @@ fun ChatScreen(
         }
     }
 
-    // Swipe refresh state
+    // SwipeRefresh state
     val swipeRefreshState = rememberSwipeRefreshState(
         isRefreshing = messageState.isLoading
     )
 
-    // Load more messages when scrolling to top
+    // tự động tải thêm tin nhắn khi cuộn lên
     LaunchedEffect(listState.firstVisibleItemIndex) {
         if (listState.firstVisibleItemIndex <= 5 && messageState.hasMoreMessages && !messageState.isLoadingMore) {
             messageViewModel.loadMoreMessages()
         }
     }
 
-    // Main content
+    // main content
     Box(modifier = Modifier.fillMaxSize()) {
         // Debug log
         LaunchedEffect(isInCall, currentCallUser, incomingCall, callState) {
@@ -199,10 +200,6 @@ fun ChatScreen(
                     webRTCService = videoCallViewModel.getWebRTCService(),
                     onEndCall = {
                         android.util.Log.d("ChatScreen", "End call clicked - calling endCall()")
-                        videoCallViewModel.endCall()
-                    },
-                    onBackClick = {
-                        android.util.Log.d("ChatScreen", "Back clicked - calling endCall()")
                         videoCallViewModel.endCall()
                     },
                     videoCallViewModel = videoCallViewModel
@@ -451,126 +448,6 @@ fun ChatScreen(
     }
 }
 
-@Preview(showBackground = true, name = "Chat Screen")
-@Composable
-private fun ChatScreenPreview() {
-    InstagramUiComposeTheme {
-        val sampleUser = User(
-            uid = "preview_user_id",
-            email = "preview@example.com",
-            username = "preview_user",
-            fullName = "Preview User",
-            profileImageUrl = "https://example.com/profile.jpg",
-            bio = "This is a preview user",
-            followers = mapOf(),
-            following = mapOf()
-        )
-
-        val sampleMessages = listOf(
-            Message(
-                messageId = "1",
-                senderId = "current_user",
-                receiverId = "preview_user_id",
-                content = "Hello! How are you?",
-                timestamp = System.currentTimeMillis() - 3600000 // 1 hour ago
-            ),
-            Message(
-                messageId = "2",
-                senderId = "preview_user_id",
-                receiverId = "current_user",
-                content = "Hi! I'm good, thanks for asking!",
-                timestamp = System.currentTimeMillis() - 3500000 // 58 minutes ago
-            ),
-            Message(
-                messageId = "3",
-                senderId = "current_user",
-                receiverId = "preview_user_id",
-                content = "What are you up to?",
-                timestamp = System.currentTimeMillis() - 3400000 // 56 minutes ago
-            )
-        )
-
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Messages list
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sampleMessages) { message ->
-                    MessageItem(
-                        message = message,
-                        isCurrentUser = message.senderId == "current_user"
-                    )
-                }
-            }
-
-            // Message input
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    // Image button
-                    IconButton(
-                        onClick = { },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = "Image",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    TextField(
-                        value = "",
-                        onValueChange = { },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 4.dp),
-                        placeholder = { Text("Type a message...") },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent
-                        ),
-                        maxLines = 5
-                    )
-
-                    IconButton(
-                        onClick = { },
-                        modifier = Modifier.size(40.dp),
-                        enabled = false
-                    ) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = "Send",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
 private fun formatMessageTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
@@ -608,7 +485,7 @@ fun FullScreenImageView(
             )
         }
 
-        // Image with zoom and pan support
+        // zoom ảnh
         AsyncImage(
             model = imageUrl,
             contentDescription = "Full screen image",
