@@ -28,8 +28,7 @@ InstagramBin là ứng dụng mạng xã hội di động lấy cảm hứng t�
 - **Upload ảnh**: Cloudinary Android SDK
 - **Chat & Video Call**: WebRTC (libwebrtc.aar), Firebase
 - **Image Loading**: Coil
-- **State Management**: ViewModel, StateFlow, LiveData
-- **Khác**: Accompanist (SwipeRefresh, SystemUiController), Coroutines
+- **Khác**: Coroutines
 
 ## 📦 Cấu trúc dự án
 
@@ -53,10 +52,6 @@ InstagramBin là ứng dụng mạng xã hội di động lấy cảm hứng t�
 3. Thêm file `google-services.json` vào thư mục `app/` (lấy từ Firebase Console)
 4. Sync Gradle, build và chạy app trên thiết bị/emulator
 
-## 📚 Tài liệu tham khảo
-- [CACHE_CLEAR_GUIDE.md](CACHE_CLEAR_GUIDE.md) - Hướng dẫn clear cache
-- [FCM_SETUP_GUIDE.md](FCM_SETUP_GUIDE.md) - Hướng dẫn cấu hình FCM
 
----
 
 > Dự án được phát triển với mục đích học tập, nghiên cứu và demo kỹ thuật. Mọi đóng góp, phản hồi xin gửi về [github issues](https://github.com/tenban/InstagramBin/issues). 
