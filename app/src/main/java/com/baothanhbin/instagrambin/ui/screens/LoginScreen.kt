@@ -1,5 +1,6 @@
 package com.baothanhbin.instagrambin.ui.screens
 
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,11 +15,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.baothanhbin.instagrambin.R
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.baothanhbin.instagrambin.viewmodel.AuthViewModel
 import com.baothanhbin.instagrambin.viewmodel.AuthState
+import com.baothanhbin.instagrambin.ui.theme.InstagramUiComposeTheme
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.core.graphics.drawable.toDrawable
+import com.baothanhbin.instagrambin.R
 
 @Composable
 fun LoginScreen(
@@ -34,6 +39,20 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val authState by authViewModel.authState.collectAsState()
+
+    // Animation cho logo
+    val scale = remember { Animatable(0.7f) }
+    LaunchedEffect(Unit) {
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 800)
+        )
+    }
+
+    if (authState is AuthState.Loading) {
+        LoadingScreen()
+        return
+    }
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -56,7 +75,7 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Instagram logo
+        // Instagram logo với animation
         Text(
             text = "Instagram",
             style = TextStyle(
@@ -64,7 +83,12 @@ fun LoginScreen(
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Bold
             ),
-            modifier = Modifier.padding(bottom = 32.dp)
+            modifier = Modifier
+                .padding(bottom = 32.dp)
+                .graphicsLayer(
+                    scaleX = scale.value,
+                    scaleY = scale.value
+                )
         )
 
         // Error message
@@ -178,9 +202,3 @@ fun LoginScreen(
         }
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun LoginScreenPreview() {
-    LoginScreen()
-} 

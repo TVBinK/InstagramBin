@@ -40,6 +40,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
+import com.baothanhbin.instagrambin.navigation.Screen
 
 @Composable
 fun HomeScreen(
@@ -290,7 +291,7 @@ fun PostItem(
                     detectTapGestures(
                         onTap = {
                             // Nhấn một lần để xem chi tiết bài đăng
-                            navController?.navigate("post_detail/${post.postId}")
+                            navController?.navigate(Screen.PostDetail.createRoute(post.postId))
                         },
                         onDoubleTap = {
                             // Nhấn đúp để hiển thị hiệu ứng trái tim
@@ -353,7 +354,7 @@ fun PostItem(
                     contentDescription = "Comment",
                     modifier = Modifier
                         .size(24.dp)
-                        .clickable { navController?.navigate("post_detail/${post.postId}") },
+                        .clickable { navController?.navigate(Screen.PostDetail.createRoute(post.postId)) },
                     tint = Color.Black
                 )
                 // Nút chia sẻ (chưa triển khai logic)
@@ -386,7 +387,7 @@ fun PostItem(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray,
                     modifier = Modifier
-                        .clickable { navController?.navigate("post_detail/${post.postId}") }
+                        .clickable { navController?.navigate(Screen.PostDetail.createRoute(post.postId)) }
                         .padding(vertical = 4.dp)
                 )
             }

@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.baothanhbin.instagrambin.viewmodel.PostsSectionViewModel
 import androidx.navigation.NavController
+import com.baothanhbin.instagrambin.navigation.Screen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.GenericTypeIndicator
@@ -70,10 +71,10 @@ fun ProfileScreen(paddingValues: PaddingValues = PaddingValues(0.dp), navControl
                             navController?.navigate("edit_profile")
                         },
                         onFollowersClick = {
-                            navController?.navigate("followers/${uiState.user!!.uid}")
+                            navController?.navigate(Screen.Followers.createRoute(uiState.user!!.uid))
                         },
                         onFollowingClick = {
-                            navController?.navigate("following/${uiState.user!!.uid}")
+                            navController?.navigate(Screen.Following.createRoute(uiState.user!!.uid))
                         },
                         user = uiState.user!!,
                         navController = navController
@@ -153,7 +154,7 @@ fun PostsSection(
                             .aspectRatio(1f)
                             .border(width = 1.dp, color = Color.White)
                             .clickable {
-                                navController?.navigate("post_detail/${post.postId}")
+                                navController?.navigate(Screen.PostDetail.createRoute(post.postId))
                             }
                     )
                 }

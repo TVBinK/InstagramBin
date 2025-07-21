@@ -56,6 +56,8 @@ import com.baothanhbin.instagrambin.viewmodel.HomeViewModelFactory
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.baothanhbin.instagrambin.viewmodel.VideoCallViewModel
+import com.baothanhbin.instagrambin.navigation.AppNavigation
+import com.baothanhbin.instagrambin.navigation.Screen
 
 
 class MainActivity : ComponentActivity() {
@@ -64,13 +66,10 @@ class MainActivity : ComponentActivity() {
     // Flag để nhớ đang xử lý video call từ notification
     private val isProcessingVideoCallNotification = mutableStateOf(false)
 
-
     @SuppressLint("StateFlowValueCalledInComposition")
     @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-
 
         val openVideoCall = intent?.getBooleanExtra("openVideoCall", false) == true
         val callerId = intent?.getStringExtra("caller_id")
@@ -83,115 +82,52 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             InstagramUiComposeTheme {
-                // Quản lý màu sắc thanh hệ thống (status bar, navigation bar)
                 val systemUiController = rememberSystemUiController()
-                val useDarkIcons = !isSystemInDarkTheme() // Sử dụng biểu tượng sáng nếu không ở chế độ tối
-
-                // Thiết lập màu thanh hệ thống trong SideEffect để đảm bảo cập nhật khi theme thay đổi
+                val useDarkIcons = !isSystemInDarkTheme()
                 SideEffect {
                     systemUiController.setSystemBarsColor(
-                        color = Color.Transparent, // Thanh hệ thống trong suốt
-                        darkIcons = useDarkIcons // Biểu tượng sáng/tối tùy theo theme
+                        color = Color.Transparent,
+                        darkIcons = useDarkIcons
                     )
                 }
-
-                // Đặt hướng bố cục (trái sang phải) và mật độ hiển thị
                 CompositionLocalProvider(
                     LocalLayoutDirection provides LayoutDirection.Ltr,
                     LocalDensity provides LocalDensity.current
                 ) {
-                    // Tạo NavController để quản lý điều hướng
                     val navController = rememberNavController()
-                    val openVideoCall = openVideoCallState.value
-                    val isProcessingVideoCall = isProcessingVideoCallNotification.value
-                    val hasPendingVideoCall = remember(openVideoCall, isProcessingVideoCall) { 
-                        openVideoCall != null || isProcessingVideoCall 
-                    }
                     val context = LocalContext.current
                     val videoCallViewModel: VideoCallViewModel = viewModel { VideoCallViewModel(context) }
-
-                    // Khi openVideoCallState thay đổi, cập nhật ViewModel và điều hướng (từ notification)
-                    LaunchedEffect(openVideoCall) {
-                        openVideoCall?.let { (callId, callerId, callerName) ->
-                            videoCallViewModel.setIncomingCallFromNotification(callId, callerId, callerName)
-                            navController.navigate("video_call_screen/$callerId") {
-                                popUpTo("splash") { inclusive = true }
-                            }
-                            openVideoCallState.value = null
-                            // Delay một chút để đảm bảo navigation hoàn tất trước khi reset flag
-                            kotlinx.coroutines.delay(1000)
-                            isProcessingVideoCallNotification.value = false
-                        }
-                    }
-
-                    // Khởi tạo AuthViewModel để quản lý trạng thái xác thực
                     val authViewModel: AuthViewModel = viewModel(
                         factory = AuthViewModelFactory(LocalContext.current.applicationContext as Application)
                     )
-                    // Thu thập trạng thái xác thực
-                    val authState by authViewModel.authState.collectAsState()
-                    // Khởi tạo HomeViewModel để quản lý dữ liệu màn hình chính
                     val homeViewModel: HomeViewModel = viewModel(
                         factory = HomeViewModelFactory(LocalContext.current.applicationContext as Application)
                     )
 
-                    // Lắng nghe tuyến đường hiện tại để xác định màn hình đang hiển thị
+                    // Lắng nghe route hiện tại để xác định có hiển thị top/bottom bar không
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
-
-
-
-
-
-                    // Danh sách các tuyến đường không hiển thị thanh trên và thanh dưới
                     val hideBarsRoutes = listOf(
-                        "add",
-                        "post_screen/{imageUris}",
-                        "login",
-                        "signup",
-                        "splash",
-                        "message",
+                        Screen.Add.route,
+                        Screen.PostScreen.route,
+                        Screen.Login.route,
+                        Screen.SignUp.route,
+                        Screen.Splash.route,
+                        Screen.Message.route,
                         "chat/{userId}"
                     )
+                    val videoCallRoutePrefix = "video_call_screen"
 
-                    // Observe incomingCall và điều hướng sang VideoCallScreen khi có cuộc gọi đến (từ WebRTC service)
-                    // Chỉ chạy nếu KHÔNG có pending video call từ notification
-                    val incomingCall by videoCallViewModel.incomingCall.collectAsState()
-                    val callState by videoCallViewModel.getWebRTCService().callState.collectAsState()
-                    val shouldPopBack by videoCallViewModel.shouldPopBack.collectAsState()
-                    LaunchedEffect(incomingCall, callState, shouldPopBack) {
-                        // Chỉ xử lý nếu KHÔNG có pending video call từ notification
-                        if (!hasPendingVideoCall) {
-                            if (incomingCall != null && callState == com.baothanhbin.instagrambin.service.WebRTCService.CallState.RINGING) {
-                                android.util.Log.d("MainActivity", "Navigating to video call screen for incoming call from "+incomingCall!!.fromUserId)
-                                navController.navigate("video_call_screen/${incomingCall!!.fromUserId}")
-                            }
-                            if (shouldPopBack) {
-                                android.util.Log.d("MainActivity", "shouldPopBack triggered - popping back stack")
-                                val popped = navController.popBackStack()
-                                if (!popped) {
-                                    // Nếu không còn màn hình nào, điều hướng về home
-                                    navController.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
-                                }
-                                videoCallViewModel.resetPopBackFlag()
-                                android.util.Log.d("MainActivity", "Popped back stack and reset shouldPopBack flag")
-                            }
-                        }
-                    }
-
-                    // Sử dụng Scaffold để tạo bố cục với thanh trên và thanh dưới
                     Scaffold(
                         topBar = {
-                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith("video_call_screen") == true)) {
+                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith(videoCallRoutePrefix) == true)) {
                                 TopBar(
                                     currentRoute = currentRoute,
                                     onLogout = {
                                         authViewModel.signOut()
                                         homeViewModel.clearCache()
-                                        navController.navigate("login") {
-                                            popUpTo("home") { inclusive = true }
+                                        navController.navigate(Screen.Login.route) {
+                                            popUpTo(Screen.Home.route) { inclusive = true }
                                         }
                                     },
                                     navController = navController
@@ -199,7 +135,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         bottomBar = {
-                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith("video_call_screen") == true)) {
+                            if (currentRoute !in hideBarsRoutes && !(currentRoute?.startsWith(videoCallRoutePrefix) == true)) {
                                 BottomBar(
                                     navController = navController,
                                     currentRoute = currentRoute
@@ -207,324 +143,29 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     ) { paddings ->
-                        // NavHost quản lý các màn hình và điều hướng
-                        NavHost(
+                        AppNavigation(
                             navController = navController,
-                            startDestination = "splash" // Màn hình khởi đầu là splash
-                        ) {
-                            // Màn hình splash
-                            composable("splash") {
-                                SplashScreen(
-                                    onSplashFinished = {
-                                        if (hasPendingVideoCall) {
-                                            // Không điều hướng sang home nếu có pending video call
-                                        } else {
-                                            when (authState) {
-                                                is AuthState.Success -> navController.navigate("home") {
-                                                    popUpTo("splash") { inclusive = true }
-                                                }
-                                                else -> navController.navigate("login") {
-                                                    popUpTo("splash") { inclusive = true }
-                                                }
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Màn hình đăng nhập
-                            composable("login") {
-                                if (authState is AuthState.Loading) {
-                                    LoadingScreen() // Hiển thị màn hình tải khi đang xác thực
-                                } else {
-                                    LoginScreen(
-                                        onLoginClick = { navController.navigate("home") }, // Điều hướng về home khi đăng nhập thành công
-                                        onFacebookLoginClick = { navController.navigate("home") }, // Đăng nhập bằng Facebook
-                                        onSignUpClick = { navController.navigate("signup") }, // Chuyển sang màn hình đăng ký
-                                        onForgotPasswordClick = { navController.navigate("forgot_password") }, // Chuyển sang màn hình quên mật khẩu
-                                        authViewModel = authViewModel
-                                    )
-                                }
-                            }
-
-                            // Màn hình chính
-                            composable("home") {
-                                HomeScreen(
-                                    viewModel = homeViewModel,
-                                    navController = navController
-                                )
-                            }
-
-                            // Màn hình tìm kiếm
-                            composable("search") {
-                                SearchScreen(onUserClick = { userId ->
-                                    navController.navigate("profile/$userId") // Điều hướng đến hồ sơ người dùng
-                                })
-                            }
-
-                            // Màn hình thêm bài đăng
-                            composable("add") {
-                                AddScreen(paddingValues = paddings, navController = navController)
-                            }
-
-                            // Màn hình đăng bài với danh sách URI hình ảnh
-                            composable("post_screen/{imageUris}") { backStackEntry ->
-                                val imageUrisString = backStackEntry.arguments?.getString("imageUris")
-                                // Chuyển đổi chuỗi URI thành danh sách Uri
-                                val imageUris = imageUrisString?.split(",")?.mapNotNull { uriString ->
-                                    if (uriString.isNotBlank()) android.net.Uri.parse(Uri.decode(uriString)) else null
-                                } ?: emptyList()
-                                PostScreen(
-                                    navController = navController,
-                                    imageUris = imageUris
-                                )
-                            }
-
-                            // Màn hình hồ sơ người dùng hiện tại
-                            composable("profile") {
-                                ProfileScreen(paddingValues = paddings, navController = navController)
-                            }
-
-                            // Màn hình đăng ký
-                            composable("signup") {
-                                SignUpScreen(
-                                    onSignUpClick = { navController.navigate("home") }, // Điều hướng về home khi đăng ký thành công
-                                    onFacebookSignUpClick = { navController.navigate("home") }, // Đăng ký bằng Facebook
-                                    onLoginClick = { navController.popBackStack() }, // Quay lại màn hình đăng nhập
-                                    authViewModel = authViewModel
-                                )
-                            }
-
-                            // Màn hình chỉnh sửa hồ sơ
-                            composable("edit_profile") {
-                                val editProfileViewModel: EditProfileViewModel = viewModel(
-                                    factory = EditProfileViewModelFactory(LocalContext.current.applicationContext as Application)
-                                )
-                                EditProfileScreen(
-                                    viewModel = editProfileViewModel,
-                                    onCancel = { navController.popBackStack() }, // Hủy và quay lại
-                                    onDone = { navController.popBackStack() } // Hoàn tất và quay lại
-                                )
-                            }
-
-                            // Màn hình hồ sơ của người dùng khác
-                            composable("profile/{userId}") { backStackEntry ->
-                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
-                                // Tải dữ liệu hồ sơ dựa trên userId
-                                LaunchedEffect(userId) {
-                                    userProfileViewModel.setUserId(userId)
-                                }
-                                UserProfileScreen(
-                                    viewModel = userProfileViewModel,
-                                    navController = navController,
-                                    onBackClick = { navController.popBackStack() },
-                                    onFollowClick = { userProfileViewModel.toggleFollow() }, // Theo dõi
-                                    onUnfollowClick = { userProfileViewModel.toggleFollow() }, // Bỏ theo dõi
-                                    onMessageClick = {
-                                        navController.navigate("chat/$userId") // Mở màn hình chat
-                                    },
-                                    onFollowersClick = { navController.navigate("followers/$userId") }, // Xem danh sách người theo dõi
-                                    onFollowingClick = { navController.navigate("following/$userId") } // Xem danh sách đang theo dõi
-                                )
-                            }
-
-                            // Màn hình danh sách người theo dõi
-                            composable("followers/{userId}") { backStackEntry ->
-                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                                val followersViewModel: com.baothanhbin.instagrambin.viewmodel.FollowersViewModel = viewModel()
-                                // Tải danh sách người theo dõi
-                                LaunchedEffect(userId) {
-                                    followersViewModel.loadFollowers(userId)
-                                }
-                                val state by followersViewModel.uiState.collectAsState()
-                                com.baothanhbin.instagrambin.ui.screens.FollowersScreen(
-                                    followers = state.followers,
-                                    onBackClick = { navController.popBackStack() },
-                                    onUserClick = { followerId ->
-                                        navController.navigate("profile/$followerId") // Xem hồ sơ người theo dõi
-                                    },
-                                    onFollowClick = { followerId ->
-                                        followersViewModel.followUser(followerId) // Theo dõi
-                                    },
-                                    onUnfollowClick = { followerId ->
-                                        followersViewModel.unfollowUser(followerId) // Bỏ theo dõi
-                                    }
-                                )
-                            }
-
-                            // Màn hình danh sách người đang theo dõi
-                            composable("following/{userId}") { backStackEntry ->
-                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                                val followingViewModel: com.baothanhbin.instagrambin.viewmodel.FollowingViewModel = viewModel()
-                                // Tải danh sách người đang theo dõi
-                                LaunchedEffect(userId) {
-                                    followingViewModel.loadFollowing(userId)
-                                }
-                                val state by followingViewModel.uiState.collectAsState()
-                                com.baothanhbin.instagrambin.ui.screens.FollowingScreen(
-                                    following = state.following,
-                                    onBackClick = { navController.popBackStack() },
-                                    onUserClick = { followingId ->
-                                        navController.navigate("profile/$followingId") // Xem hồ sơ người đang theo dõi
-                                    }
-                                )
-                            }
-
-                            // Màn hình chi tiết bài đăng
-                            composable("post_detail/{postId}") { backStackEntry ->
-                                val postId = backStackEntry.arguments?.getString("postId") ?: ""
-                                PostDetailScreen(
-                                    navController = navController,
-                                    postId = postId
-                                )
-                            }
-
-                            // Màn hình danh sách tin nhắn
-                            composable("message") {
-                                ChatListScreen(
-                                    onBackClick = { navController.popBackStack() },
-                                    onChatClick = { user ->
-                                        navController.navigate("chat/${user.uid}")
-                                    },
-                                    onNewMessageClick = {
-                                        navController.navigate("search") {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Màn hình chat với một người dùng cụ thể
-                            composable("chat/{userId}") { backStackEntry ->
-                                val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                                val userProfileViewModel: com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel = viewModel()
-                                val uiState by userProfileViewModel.uiState.collectAsState()
-
-                                // Tải dữ liệu người dùng dựa trên userId
-                                LaunchedEffect(userId) {
-                                    userProfileViewModel.setUserId(userId)
-                                }
-
-                                // Nếu dữ liệu người dùng đã tải, hiển thị màn hình chat
-                                uiState.user?.let { userData ->
-                                    ChatScreen(
-                                        user = userData,
-                                        onBackClick = { navController.popBackStack() },
-                                        navController = navController,
-                                        videoCallViewModel = videoCallViewModel
-                                    )
-                                } ?: run {
-                                    // Nếu chưa tải xong, hiển thị vòng tròn tải
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator()
-                                    }
-                                }
-                            }
-
-                            // Màn hình xem hình ảnh toàn màn hình
-                            composable("image_view/{imageUrl}") { backStackEntry ->
-                                val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
-                                val previousEntry = navController.previousBackStackEntry
-                                val previousRoute = previousEntry?.destination?.route
-                                FullImageScreen(
-                                    imageUrl = Uri.decode(imageUrl),
-                                    onBack = {
-                                        // Điều hướng quay lại dựa trên tuyến đường trước đó
-                                        if (previousRoute?.startsWith("chat/") == true) {
-                                            previousRoute?.let { route ->
-                                                navController.popBackStack(route, false)
-                                            } ?: navController.popBackStack()
-                                        } else {
-                                            navController.popBackStack()
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Màn hình video call
-                            composable("video_call_screen/{fromUserId}") { backStackEntry ->
-                                val fromUserId = backStackEntry.arguments?.getString("fromUserId") ?: ""
-                                // Lấy user từ ViewModel hoặc truyền qua navArgs
-                                val incomingCall = videoCallViewModel.incomingCall.value
-                                val callUser = incomingCall?.fromUser
-                                if (callUser != null) {
-                                    com.baothanhbin.instagrambin.ui.screens.VideoCallScreen(
-                                        user = callUser,
-                                        webRTCService = videoCallViewModel.getWebRTCService(),
-                                        onEndCall = {
-                                            videoCallViewModel.endCall()
-                                            navController.popBackStack()
-                                        },
-                                        videoCallViewModel = videoCallViewModel
-                                    )
-                                }
-                            }
-                        }
+                            authViewModel = authViewModel,
+                            homeViewModel = homeViewModel,
+                            videoCallViewModel = videoCallViewModel,
+                            openVideoCallState = openVideoCallState,
+                            isProcessingVideoCallNotification = isProcessingVideoCallNotification,
+                            paddings = paddings
+                        )
                     }
                 }
             }
         }
     }
-
-
 }
 
 // Composable hiển thị màn hình tải với vòng tròn tiến trình
 @Composable
 fun LoadingScreen() {
     Box(
-        modifier = Modifier.fillMaxSize(), // Chiếm toàn bộ màn hình
-        contentAlignment = Alignment.Center // Căn giữa nội dung
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator() // Hiển thị vòng tròn tải
-    }
-}
-
-// Composable chính để quản lý trạng thái xác thực và hiển thị màn hình phù hợp
-@Composable
-fun MainScreen(
-    authViewModel: AuthViewModel = viewModel(), // ViewModel quản lý xác thực
-    homeViewModel: HomeViewModel = viewModel() // ViewModel cho màn hình chính
-) {
-    val authState by authViewModel.authState.collectAsState() // Thu thập trạng thái xác thực
-
-    // Xử lý hiển thị dựa trên trạng thái xác thực
-    when (authState) {
-        is AuthState.Initial -> {
-            // Trạng thái khởi tạo: hiển thị màn hình đăng nhập
-            LoginScreen(
-                onLoginClick = { /* handled by navigation */ },
-                onFacebookLoginClick = { /* handled by navigation */ },
-                onSignUpClick = { /* handled by navigation */ },
-                onForgotPasswordClick = { /* handled by navigation */ },
-                authViewModel = authViewModel
-            )
-        }
-        is AuthState.Loading -> {
-            // Trạng thái đang tải: hiển thị màn hình tải
-            LoadingScreen()
-        }
-        is AuthState.Success -> {
-            // Trạng thái xác thực thành công: hiển thị màn hình chính
-            HomeScreen(viewModel = homeViewModel)
-        }
-        is AuthState.Error -> {
-            // Trạng thái lỗi: hiển thị màn hình đăng nhập
-            LoginScreen(
-                onLoginClick = { /* handled by navigation */ },
-                onFacebookLoginClick = { /* handled by navigation */ },
-                onSignUpClick = { /* handled by navigation */ },
-                onForgotPasswordClick = { /* handled by navigation */ },
-                authViewModel = authViewModel
-            )
-        }
+        CircularProgressIndicator()
     }
 }

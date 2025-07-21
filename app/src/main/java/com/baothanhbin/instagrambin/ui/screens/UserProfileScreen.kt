@@ -37,6 +37,7 @@ import com.baothanhbin.instagrambin.viewmodel.UserProfileUiState
 import com.baothanhbin.instagrambin.viewmodel.UserProfileViewModel
 import kotlinx.coroutines.launch
 import androidx.navigation.NavController
+import com.baothanhbin.instagrambin.navigation.Screen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -303,7 +304,7 @@ fun UserProfileScreen(
         state = state,
         onBackClick = onBackClick,
         onPostClick = { post -> 
-            navController.navigate("post_detail/${post.postId}")
+            navController.navigate(Screen.PostDetail.createRoute(post.postId))
         },
         onFollowClick = onFollowClick,
         onUnfollowClick = onUnfollowClick,

@@ -34,6 +34,11 @@ fun SignUpScreen(
 
     val authState by authViewModel.authState.collectAsState()
 
+    if (authState is AuthState.Loading) {
+        LoadingScreen()
+        return
+    }
+
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
