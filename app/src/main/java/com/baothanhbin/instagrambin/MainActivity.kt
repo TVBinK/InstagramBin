@@ -61,7 +61,7 @@ import com.baothanhbin.instagrambin.navigation.Screen
 
 
 class MainActivity : ComponentActivity() {
-    //Test git nhe
+    //Test git nhe (next commit)
     // Đổi sang Triple để lưu callId, callerId, callerName
     private val openVideoCallState = mutableStateOf<Triple<String, String, String?>?>(null)
     // Flag để nhớ đang xử lý video call từ notification
