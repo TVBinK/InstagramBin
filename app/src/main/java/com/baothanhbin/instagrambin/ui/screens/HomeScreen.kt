@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,7 @@ import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.accompanist.swiperefresh.SwipeRefreshIndicator
 import com.baothanhbin.instagrambin.navigation.Screen
+import androidx.compose.foundation.lazy.rememberLazyListState
 
 @Composable
 fun HomeScreen(
@@ -104,7 +106,9 @@ fun HomeScreen(
                     ),
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFFFFFFFF))
+                        .background(Color(0xFFFFFFFF)),
+                    // Tối ưu performance
+                    state = rememberLazyListState()
                 ) {
                     // Hiển thị stories (tin của bạn và bạn bè)
                     item {
@@ -113,7 +117,9 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            // Tối ưu performance cho stories
+                            state = rememberLazyListState()
                         ) {
                             // Hiển thị story của người dùng hiện tại
                             uiState.currentUser?.let { user ->
@@ -137,12 +143,18 @@ fun HomeScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             AsyncImage(
-                                                model = user.profileImageUrl,
+                                                model = ImageRequest.Builder(LocalContext.current)
+                                                    .data(user.profileImageUrl)
+                                                    .crossfade(200)
+                                                    .size(160) // Tối ưu size cho story
+                                                    .build(),
                                                 contentDescription = "Your story",
                                                 modifier = Modifier
                                                     .size(80.dp)
                                                     .clip(CircleShape),
-                                                contentScale = ContentScale.Crop
+                                                contentScale = ContentScale.Crop,
+                                                placeholder = painterResource(id = R.drawable.profile_pic),
+                                                error = painterResource(id = R.drawable.profile_pic)
                                             )
                                         }
                                         Text("Tin của bạn", fontSize = 12.sp, maxLines = 1)
@@ -150,7 +162,10 @@ fun HomeScreen(
                                 }
                             }
                             // Hiển thị stories của bạn bè
-                            items(uiState.friends) { friend ->
+                            items(
+                                items = uiState.friends,
+                                key = { friend -> friend.uid } // Tối ưu re-compose
+                            ) { friend ->
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(
                                         modifier = Modifier
@@ -170,12 +185,18 @@ fun HomeScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AsyncImage(
-                                            model = friend.profileImageUrl,
+                                            model = ImageRequest.Builder(LocalContext.current)
+                                                .data(friend.profileImageUrl)
+                                                .crossfade(200)
+                                                .size(160) // Tối ưu size cho story
+                                                .build(),
                                             contentDescription = friend.username,
                                             modifier = Modifier
                                                 .size(80.dp)
                                                 .clip(CircleShape),
-                                            contentScale = ContentScale.Crop
+                                            contentScale = ContentScale.Crop,
+                                            placeholder = painterResource(id = R.drawable.profile_pic),
+                                            error = painterResource(id = R.drawable.profile_pic)
                                         )
                                     }
                                     Text(friend.username, fontSize = 12.sp, maxLines = 1)
@@ -184,11 +205,17 @@ fun HomeScreen(
                         }
                     }
                     // Hiển thị danh sách bài đăng
-                    items(uiState.posts) { post ->
+                    items(
+                        items = uiState.posts,
+                        key = { post -> post.postId } // Tối ưu re-compose
+                    ) { post ->
+                        val onLikeClick = remember(post.postId) {
+                            { _: Post -> viewModel.toggleLike(post) }
+                        }
                         PostItem(
                             post = post,
                             navController = navController,
-                            onLikeClick = { viewModel.toggleLike(post) } // Xử lý hành động thích bài
+                            onLikeClick = onLikeClick
                         )
                     }
                 }
@@ -205,8 +232,12 @@ fun PostItem(
     onLikeClick: (Post) -> Unit, // Callback khi nhấn nút thích
 ) {
     // Kiểm tra xem người dùng hiện tại có thích bài đăng này không
-    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
-    val liked = currentUserId != null && post.likes.containsKey(currentUserId)
+    val currentUserId = remember { FirebaseAuth.getInstance().currentUser?.uid }
+    val liked by remember(post.likes, currentUserId) {
+        derivedStateOf {
+            currentUserId != null && post.likes.containsKey(currentUserId)
+        }
+    }
     // Trạng thái để hiển thị hiệu ứng trái tim khi nhấn đúp
     var showHeart by remember { mutableStateOf(false) }
 
@@ -252,17 +283,23 @@ fun PostItem(
                     model = ImageRequest
                         .Builder(LocalContext.current)
                         .data(post.user.profileImageUrl)
-                        .crossfade(400)
+                        .crossfade(300) // Giảm từ 400 xuống 300ms
+                        .size(60) // Tối ưu size cho avatar
                         .build(),
                     modifier = Modifier
                         .clip(CircleShape)
                         .size(30.dp),
                     contentScale = ContentScale.Crop,
-                    contentDescription = null
+                    contentDescription = null,
+                    placeholder = painterResource(id = R.drawable.profile_pic),
+                    error = painterResource(id = R.drawable.profile_pic)
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             // Tên người dùng, có thể nhấn để điều hướng đến hồ sơ
+            val onUsernameClick = remember(post.user.uid) {
+                { navController?.navigate("profile/${post.user.uid}") }
+            }
             Text(
                 text = post.user.fullName,
                 fontWeight = FontWeight.Bold,
@@ -270,7 +307,7 @@ fun PostItem(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = rememberRipple() // Hiệu ứng ripple khi nhấn
                 ) {
-                    navController?.navigate("profile/${post.user.uid}")
+                    onUsernameClick()
                 }
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -283,6 +320,12 @@ fun PostItem(
         }
 
         // Phần ảnh bài đăng
+        val onImageClick = remember(post.postId) {
+            { navController?.navigate(Screen.PostDetail.createRoute(post.postId)) }
+        }
+        val onImageDoubleClick = remember {
+            { showHeart = true }
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -291,20 +334,24 @@ fun PostItem(
                     detectTapGestures(
                         onTap = {
                             // Nhấn một lần để xem chi tiết bài đăng
-                            navController?.navigate(Screen.PostDetail.createRoute(post.postId))
+                            onImageClick()
                         },
                         onDoubleTap = {
                             // Nhấn đúp để hiển thị hiệu ứng trái tim
-                            showHeart = true
+                            onImageDoubleClick()
                         }
                     )
                 }
         ) {
             AsyncImage(
-                model = post.imageUrl,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(post.imageUrl)
+                    .crossfade(200) // Giảm crossfade cho ảnh chính
+                    .size(800) // Tối ưu size cho ảnh bài đăng
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
             )
 
             // Hiệu ứng trái tim khi nhấn đúp
